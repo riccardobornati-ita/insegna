@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EEF1F4">
+<title>Insegna – controllo banner LED</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Bebas+Neue&family=Pixelify+Sans:wght@400..700&family=Press+Start+2P&family=Silkscreen:wght@400;700&family=Tiny5&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#1B2130; --muted:#5E6878; --line:#D8DDE4; --soft:#E4E8ED;
+  --signal:#E3262F; --signal-dark:#B81C24; --ok:#1F9D55; --housing:#1A1C21;
+  --r:10px; --pad:16px;
+  --font:"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--font);-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px;border-radius:6px}
+[hidden]{display:none!important}
+h1,h2{font-stretch:75%;font-weight:750;letter-spacing:-.01em;margin:0}
+h1{font-size:28px;line-height:1.1}
+h2{font-size:19px;margin-bottom:10px}
+
+/* header */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:calc(10px + env(safe-area-inset-top)) var(--pad) 10px;background:rgba(238,241,244,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-stretch:70%;font-weight:800;font-size:22px;letter-spacing:-.01em}
+.brand canvas{width:44px;height:12px;image-rendering:pixelated}
+.link-pill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px 7px 11px;font-weight:600;font-size:14px;cursor:pointer;max-width:58vw}
+.link-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-pill .dot{width:9px;height:9px;border-radius:50%;background:#9AA3AF;flex:none}
+.link-pill[data-state=connected] .dot{background:var(--ok);box-shadow:0 0 0 3px rgba(31,157,85,.18)}
+.link-pill[data-state=connecting] .dot{background:#F2A900;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+
+main{max-width:760px;margin:0 auto;padding:0 0 calc(96px + env(safe-area-inset-bottom))}
+.view{padding:0 var(--pad)}
+.view-head{display:flex;align-items:end;justify-content:space-between;gap:12px;padding:22px 0 10px}
+
+/* LED stage: the one loud element */
+.stage{position:sticky;top:57px;z-index:10;margin:0 calc(-1 * var(--pad));padding:14px var(--pad) 8px;background:var(--bg)}
+.panel{background:var(--housing);border-radius:6px;padding:10px;box-shadow:inset 0 0 0 1px #2C2F36, 0 1px 0 #fff, 0 10px 24px -14px rgba(20,24,32,.6);position:relative}
+.panel::before,.panel::after{content:"";position:absolute;top:50%;width:4px;height:4px;border-radius:50%;background:#3A3E46;transform:translateY(-50%)}
+.panel::before{left:3px}.panel::after{right:3px}
+#led{display:block;width:100%;aspect-ratio:96/16;image-rendering:auto}
+.meta-btns{display:flex;gap:6px}
+.stage-meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;padding-top:6px;font-variant-numeric:tabular-nums}
+
+/* kinds */
+.kinds{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:6px calc(-1 * var(--pad)) 0;padding:4px var(--pad) 12px;border-bottom:1px solid var(--line)}
+.kinds::-webkit-scrollbar{display:none}
+.kinds button{flex:none;border:0;background:transparent;padding:8px 12px;border-radius:999px;font-weight:600;color:var(--muted);cursor:pointer}
+.kinds button[aria-selected=true]{background:var(--ink);color:#fff}
+
+.editor{padding:16px 0 4px}
+.kind-pane{display:grid;gap:14px}
+.field{display:grid;gap:6px;min-width:0;border:0;margin:0;padding:0}
+.field>span,.field>legend{font-size:13px;font-weight:600;color:var(--muted);padding:0}
+.field output{color:var(--ink);font-variant-numeric:tabular-nums}
+.field.inline{display:flex;align-items:center;gap:8px}
+.field.inline input[type=number]{width:84px}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),select,textarea{
+  width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;min-height:44px}
+textarea{resize:vertical}
+.field.big textarea{font-size:20px;font-weight:600;line-height:1.3}
+input[type=range]{width:100%;accent-color:var(--ink);height:28px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}
+.check{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--ink)}
+.hint{color:var(--muted);font-size:14px;margin:0;max-width:65ch}
+.note{color:var(--muted);font-size:13px}
+
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button,.chips button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 11px;cursor:pointer;font-weight:550;font-size:14px}
+.seg button[aria-pressed=true],.chips button[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+.colors{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:8px}
+.swatch{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.swatch input{width:40px;height:40px;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--surface)}
+
+.sprites{display:flex;flex-wrap:wrap;gap:6px;margin-top:-6px}
+.sprites button{border:1px solid var(--line);background:var(--housing);border-radius:6px;width:40px;height:34px;display:grid;place-items:center;cursor:pointer;padding:0}
+.sprites canvas{width:24px;height:24px;image-rendering:pixelated}
+
+.drop{display:grid;gap:4px;place-items:center;text-align:center;border:1.5px dashed #AEB6C2;border-radius:var(--r);padding:22px 14px;background:var(--surface);cursor:pointer}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.drop span{font-weight:650}
+.drop small{color:var(--muted)}
+.drop.compact{padding:12px}
+
+/* drawing */
+.drawbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.undo,.nudge{display:flex;gap:6px}
+button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(--surface);border-radius:8px;font-size:18px;cursor:pointer}
+.palette{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.palette button{width:30px;height:30px;border-radius:6px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.palette button[aria-pressed=true]{box-shadow:0 0 0 2px var(--ink)}
+.palette input{width:36px;height:34px;padding:1px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.grid-wrap{overflow:auto;background:var(--housing);border-radius:6px;padding:6px;touch-action:pan-x;max-height:60vh}
+#grid{display:block;touch-action:none;cursor:crosshair}
+#drawEditor{display:grid;gap:12px}
+
+.frames{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.frames button{flex:none;border:2px solid transparent;border-radius:6px;padding:2px;background:var(--housing);cursor:pointer;position:relative}
+.frames button[aria-pressed=true]{border-color:var(--signal)}
+.frames canvas{display:block;width:96px;height:16px;image-rendering:pixelated}
+.frames small{position:absolute;right:3px;bottom:1px;color:#fff;font-size:10px;opacity:.7}
+
+/* movement */
+.fx{border-top:1px solid var(--line);padding:18px 0 4px;display:grid;gap:14px}
+.fx h2{margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.fx-cont{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+
+/* buttons */
+.primary,.secondary,.ghost{border-radius:999px;font-weight:650;cursor:pointer;min-height:46px;padding:0 20px;border:1px solid transparent}
+.primary{background:var(--signal);color:#fff;position:relative;overflow:hidden}
+.primary:hover{background:var(--signal-dark)}
+.primary:disabled{opacity:.6;cursor:default}
+.primary span{position:relative;z-index:1}
+.primary .bar{position:absolute;inset:0 auto 0 0;width:0;background:rgba(0,0,0,.22);transition:width .15s linear}
+.secondary{background:var(--ink);color:#fff}
+.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.ghost.small,.secondary.small{min-height:36px;padding:0 13px;font-size:14px}
+.ghost.danger{color:var(--signal-dark)}
+.file-btn{display:inline-flex;align-items:center;position:relative}
+.file-btn input{position:absolute;opacity:0;inset:0;cursor:pointer}
+
+.actions{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom));z-index:9;display:flex;gap:8px;align-items:center;margin:18px calc(-1 * var(--pad)) 0;padding:10px var(--pad);background:rgba(238,241,244,.94);backdrop-filter:blur(6px);border-top:1px solid var(--line)}
+.actions .name{flex:1;min-width:0}
+.actions .primary{flex:none}
+
+/* lists */
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list li{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.list .thumb{background:var(--housing);border-radius:4px;padding:3px;grid-row:span 2}
+.list .thumb canvas{display:block;width:120px;height:20px;image-rendering:pixelated}
+.list .title{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list .title small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.list .btns{display:flex;flex-wrap:wrap;gap:6px;grid-column:2}
+.list .count{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.list .count input{width:70px!important;min-height:36px!important;padding:4px 8px!important}
+.empty{color:var(--muted);padding:28px 0;max-width:46ch}
+
+/* device */
+.devcard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-bottom:6px}
+.devcard small{display:block;color:var(--muted)}
+.setting{padding:16px 0;border-bottom:1px solid var(--line);display:grid;gap:10px}
+.setting-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600}
+.switch{position:relative;width:52px;height:30px;flex:none}
+.switch input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer;z-index:1}
+.switch i{position:absolute;inset:0;background:#B9C0CA;border-radius:999px;transition:background .15s}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked+i{background:var(--ok)}
+.switch input:checked+i::after{transform:translateX(22px)}
+.switch input:focus-visible+i{outline:3px solid #2F6BFF;outline-offset:2px}
+.wizard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.wizard .btns{display:flex;flex-wrap:wrap;gap:8px}
+.log summary{font-weight:600;cursor:pointer;min-height:36px;display:flex;align-items:center}
+.log pre{background:var(--housing);color:#C9F2D5;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border-radius:8px;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+
+/* rules */
+.rule{padding:14px 0;border-bottom:1px solid var(--line);display:grid;gap:10px}
+.days{display:flex;flex-wrap:wrap;gap:5px}
+.days button{width:40px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:600;cursor:pointer;font-size:13px}
+.days button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.rule .times{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+
+/* bottom tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{border:0;background:none;display:grid;justify-items:center;gap:2px;padding:9px 0 8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+.tabs svg{width:22px;height:22px;fill:currentColor}
+.tabs button[aria-current=page]{color:var(--ink)}
+.tabs button[aria-current=page] svg{fill:var(--signal)}
+
+/* vetrina */
+.vetrina{position:fixed;inset:0;z-index:50;background:var(--housing);color:#E9ECF1;display:grid;place-items:center;padding:24px}
+.v-inner{display:grid;gap:14px;justify-items:center;text-align:center;max-width:520px;width:100%}
+.v-clock{font:400 64px/1 "Silkscreen",monospace;margin:0;color:#FF4D4D;text-shadow:0 0 18px rgba(255,60,60,.5)}
+.v-state{margin:0;color:#B8C0CC}
+.v-log{list-style:none;margin:0;padding:0;font-size:13px;color:#8D96A3;max-height:30vh;overflow:auto;width:100%}
+
+.toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:60;
+  background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;max-width:90vw;font-weight:550;transition:.2s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--signal-dark)}
+
+@media (min-width:700px){
+  .stage{top:61px}
+  h1{font-size:34px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand" aria-label="Insegna"><canvas id="logo" width="44" height="12" aria-hidden="true"></canvas><span>Insegna</span></div>
+  <button class="link-pill" id="linkPill" type="button"><i class="dot"></i><span id="linkLabel">Collega banner</span></button>
+</header>
+
+<main id="main">
+  <!-- ============ CREA ============ -->
+  <section class="view" id="view-crea" data-view="crea">
+    <div class="stage">
+      <div class="panel" id="panelWrap">
+        <canvas id="led" aria-label="Anteprima del banner"></canvas>
+      </div>
+      <div class="stage-meta"><span id="previewInfo">96 × 16</span><span class="meta-btns"><button class="ghost small" id="btnNew" type="button">Nuovo</button><button class="ghost small" id="btnReplay" type="button">Riavvia</button></span></div>
+    </div>
+
+    <nav class="kinds" role="tablist" aria-label="Tipo di contenuto">
+      <button role="tab" data-kind="text" aria-selected="true">Testo</button>
+      <button role="tab" data-kind="image">Immagine</button>
+      <button role="tab" data-kind="draw">Disegno</button>
+      <button role="tab" data-kind="anim">Animazione</button>
+      <button role="tab" data-kind="clock">Orologio</button>
+      <button role="tab" data-kind="countdown">Conto alla rovescia</button>
+    </nav>
+
+    <div class="editor">
+      <!-- Testo -->
+      <div class="kind-pane" data-pane="text">
+        <label class="field big"><span>Scritta</span>
+          <textarea id="tText" rows="2" placeholder="Scrivi qui. Emoji ammesse 😀, oppure :cuore: :stella:"></textarea>
+        </label>
+        <div class="sprites" id="spriteBar" aria-label="Simboli pixel"></div>
+        <div class="row2">
+          <label class="field"><span>Carattere</span><select id="tFont"></select></label>
+          <label class="field"><span>Altezza</span><select id="tSize"></select></label>
+        </div>
+        <div class="row3">
+          <label class="field"><span>Spaziatura</span><input id="tSpacing" type="number" min="-2" max="8" value="1"></label>
+          <label class="field"><span>Su / giù</span><input id="tYOff" type="number" min="-8" max="8" value="0"></label>
+          <label class="check"><input id="tBold" type="checkbox"><span>Grassetto</span></label>
+        </div>
+        <fieldset class="field"><legend>Colore</legend>
+          <div class="seg" id="tColorMode">
+            <button data-v="solid" aria-pressed="true">Pieno</button><button data-v="gradH">Sfumato →</button><button data-v="gradV">Sfumato ↓</button><button data-v="rainbow">Arcobaleno</button><button data-v="alt">Alternato</button>
+          </div>
+          <div class="colors">
+            <label class="swatch"><input type="color" id="tColor1" value="#ff3b30"><span>Colore 1</span></label>
+            <label class="swatch" id="tColor2Wrap"><input type="color" id="tColor2" value="#ffd400"><span>Colore 2</span></label>
+            <label class="swatch"><input type="color" id="tBg" value="#000000"><span>Sfondo</span></label>
+            <label class="check"><input id="tBgOn" type="checkbox"><span>Usa sfondo</span></label>
+          </div>
+        </fieldset>
+        <button class="ghost" id="tToDraw" type="button">Ritocca a mano nel disegno</button>
+      </div>
+
+      <!-- Immagine -->
+      <div class="kind-pane" data-pane="image" hidden>
+        <label class="drop" id="iDrop"><input type="file" id="iFile" accept="image/*"><span id="iDropLabel">Scegli un'immagine o una GIF</span><small>Le immagini più larghe dello schermo diventano una striscia che scorre.</small></label>
+        <fieldset class="field"><legend>Adattamento</legend>
+          <div class="seg" id="iFit">
+            <button data-v="height" aria-pressed="true">Striscia lunga</button><button data-v="cover">Riempi</button><button data-v="contain">Intera</button>
+          </div>
+        </fieldset>
+        <div class="row2">
+          <label class="field"><span>Contrasto</span><input type="range" id="iContrast" min="-50" max="80" value="20"></label>
+          <label class="field"><span>Saturazione</span><input type="range" id="iSat" min="-100" max="120" value="40"></label>
+        </div>
+        <div class="row2">
+          <label class="field"><span>Luminosità</span><input type="range" id="iBri" min="-60" max="60" value="0"></label>
+          <label class="field"><span>Neri puliti</span><input type="range" id="iBlack" min="0" max="120" value="30"></label>
+        </div>
+        <label class="field"><span>Posizione verticale</span><input type="range" id="iPosY" min="0" max="100" value="50"></label>
+        <button class="ghost" id="iToDraw" type="button">Ritocca a mano nel disegno</button>
+      </div>
+
+      <!-- Disegno -->
+      <div class="kind-pane" data-pane="draw" hidden>
+       <div id="drawEditor">
+        <div class="drawbar">
+          <div class="seg tools" id="dTool">
+            <button data-v="pen" aria-pressed="true" title="Penna">Penna</button><button data-v="erase" title="Gomma">Gomma</button><button data-v="fill" title="Riempi area">Riempi</button><button data-v="pick" title="Preleva colore">Preleva</button><button data-v="pan" title="Scorri la griglia con il dito">Scorri</button>
+          </div>
+          <div class="undo"><button class="icon" id="dUndo" type="button" aria-label="Annulla">↶</button><button class="icon" id="dRedo" type="button" aria-label="Ripeti">↷</button></div>
+        </div>
+        <div class="palette" id="dPalette"></div>
+        <div class="grid-wrap" id="gridWrap"><canvas id="grid"></canvas></div>
+        <div class="drawbar">
+          <div class="nudge" aria-label="Sposta disegno"><button class="icon" data-nudge="-1,0" aria-label="Sposta a sinistra">←</button><button class="icon" data-nudge="0,-1" aria-label="Sposta su">↑</button><button class="icon" data-nudge="0,1" aria-label="Sposta giù">↓</button><button class="icon" data-nudge="1,0" aria-label="Sposta a destra">→</button></div>
+          <label class="field inline"><span>Zoom</span><input type="range" id="dZoom" min="6" max="30" value="16"></label>
+        </div>
+        <div class="drawbar" id="dWidthBar">
+          <label class="field inline"><span>Larghezza</span><input type="number" id="dWidth" min="16" max="1536" step="8" value="96"></label>
+          <button class="ghost small" id="dFlipH" type="button">Specchia</button>
+          <button class="ghost small danger" id="dClear" type="button">Svuota</button>
+        </div>
+       </div>
+      </div>
+
+      <!-- Animazione -->
+      <div class="kind-pane" data-pane="anim" hidden>
+        <p class="hint">Ogni fotogramma è una schermata da 96 × 16. Tocca un fotogramma per modificarlo qui sotto.</p>
+        <div class="frames" id="aFrames"></div>
+        <div class="drawbar">
+          <button class="ghost small" id="aAdd" type="button">Nuovo</button>
+          <button class="ghost small" id="aDup" type="button">Duplica</button>
+          <button class="ghost small" id="aLeft" type="button" aria-label="Sposta prima">◀</button>
+          <button class="ghost small" id="aRight" type="button" aria-label="Sposta dopo">▶</button>
+          <button class="ghost small danger" id="aDel" type="button">Elimina</button>
+        </div>
+        <label class="drop compact"><input type="file" id="aFile" accept="image/gif,image/webp,image/png"><span>Importa una GIF</span></label>
+        <label class="field"><span>Velocità fotogrammi <output id="aSpeedOut">20</output></span><input type="range" id="aSpeed" min="1" max="40" value="20"></label>
+        <div id="aEditorSlot"></div>
+      </div>
+
+      <!-- Orologio -->
+      <div class="kind-pane" data-pane="clock" hidden>
+        <p class="hint">L'orologio lo disegna il banner stesso e resta preciso anche a telefono spento. All'invio l'ora del banner viene sincronizzata.</p>
+        <div class="row2">
+          <label class="field"><span>Ora</span><select id="cTime"></select></label>
+          <label class="field"><span>Colore ora</span><select id="cTimeColor" class="colorsel"></select></label>
+        </div>
+        <div class="row2">
+          <label class="field"><span>Data</span><select id="cDay"></select></label>
+          <label class="field"><span>Colore data</span><select id="cDayColor" class="colorsel"></select></label>
+        </div>
+        <div class="row2">
+          <label class="field"><span>Giorno della settimana</span><select id="cWeek"><option value="0">No</option><option value="1">Sì (MON, TUE…)</option></select></label>
+          <label class="field"><span>Colore giorno</span><select id="cWeekColor" class="colorsel"></select></label>
+        </div>
+        <label class="field"><span>Dimensione</span><select id="cSize"><option value="1">Piccola, 8 px (due righe)</option><option value="0">Media, 12 px</option><option value="2" selected>Grande, 16 px</option></select></label>
+      </div>
+
+      <!-- Conto alla rovescia -->
+      <div class="kind-pane" data-pane="countdown" hidden>
+        <p class="hint">Il banner non sa contare da solo: l'app ricalcola e rimanda la scritta a intervalli regolari finché resta aperta in modalità vetrina.</p>
+        <div class="row2">
+          <label class="field"><span>Fino a</span><input type="datetime-local" id="kTarget"></label>
+          <label class="field"><span>Formato</span><select id="kFormat">
+            <option value="dhm">2g 05h 30m</option><option value="d">12 giorni</option><option value="hm">53:30 (ore:min)</option><option value="dd">-12</option>
+          </select></label>
+        </div>
+        <div class="row2">
+          <label class="field"><span>Prima</span><input id="kPrefix" placeholder="es. GARA TRA"></label>
+          <label class="field"><span>Dopo</span><input id="kSuffix" placeholder=""></label>
+        </div>
+        <label class="field"><span>Alla scadenza mostra</span><input id="kEnd" value="VIA!"></label>
+        <label class="field"><span>Aggiorna ogni</span><select id="kEvery"><option value="1">1 minuto</option><option value="5" selected>5 minuti</option><option value="15">15 minuti</option><option value="60">1 ora</option></select></label>
+        <p class="hint">Carattere e colori sono quelli della scheda Testo.</p>
+      </div>
+    </div>
+
+    <!-- Effetto -->
+    <div class="fx" id="fxBox">
+      <h2>Movimento</h2>
+      <div class="chips" id="fxEffect"></div>
+      <div class="fx-cont" id="fxContBox" hidden>
+        <label class="check"><input type="checkbox" id="fxJoin" checked><span>Richiudi il giro: dopo la fine riparte subito l'inizio</span></label>
+        <label class="field"><span>Spazio tra un giro e l'altro <output id="fxGapOut">24</output> px</span><input type="range" id="fxGap" min="0" max="96" value="24"></label>
+      </div>
+      <label class="field" id="fxSpeedBox"><span>Velocità <output id="fxSpeedOut">30</output></span><input type="range" id="fxSpeed" min="1" max="50" value="30"></label>
+      <label class="field" id="fxStayBox"><span>Pausa <output id="fxStayOut">30</output></span><input type="range" id="fxStay" min="0" max="255" value="30"></label>
+      <label class="field"><span>Luminosità di questo contenuto <output id="fxLightOut">100</output>%</span><input type="range" id="fxLight" min="5" max="100" value="100"></label>
+    </div>
+
+    <div class="actions">
+      <input id="elName" class="name" placeholder="Nome (per la libreria)" aria-label="Nome del contenuto">
+      <button class="secondary" id="btnSave" type="button">Salva</button>
+      <button class="primary" id="btnSend" type="button"><span>Invia al banner</span><i class="bar"></i></button>
+    </div>
+  </section>
+
+  <!-- ============ LIBRERIA ============ -->
+  <section class="view" id="view-lib" data-view="lib" hidden>
+    <div class="view-head"><h1>Libreria</h1><div><button class="ghost small" id="libExport" type="button">Esporta</button><label class="ghost small file-btn">Importa<input type="file" id="libImport" accept="application/json"></label></div></div>
+    <ul class="list" id="libList"></ul>
+    <p class="empty" id="libEmpty">Ancora niente qui. Crea un contenuto e premi Salva: lo ritrovi in questa pagina, pronto da rimandare o da mettere in playlist.</p>
+  </section>
+
+  <!-- ============ PLAYLIST ============ -->
+  <section class="view" id="view-play" data-view="play" hidden>
+    <div class="view-head"><h1>Playlist</h1></div>
+    <p class="hint">Il banner ripete i contenuti in quest'ordine. Per ognuno scegli quante volte va mostrato prima di passare al successivo.</p>
+    <ol class="list" id="plList"></ol>
+    <p class="empty" id="plEmpty">La playlist è vuota. Aggiungi contenuti dalla Libreria con “In playlist”.</p>
+    <div class="actions"><button class="primary" id="btnSendPl" type="button"><span>Invia la playlist</span><i class="bar"></i></button></div>
+  </section>
+
+  <!-- ============ ORARI ============ -->
+  <section class="view" id="view-time" data-view="time" hidden>
+    <div class="view-head"><h1>Orari</h1></div>
+    <p class="hint">Il banner non ha una programmazione interna: gli orari funzionano con l'app aperta in modalità vetrina e il telefono vicino al banner, in carica.</p>
+    <div id="rules"></div>
+    <button class="ghost" id="addRule" type="button">Aggiungi fascia oraria</button>
+    <label class="field"><span>All'accensione mostra</span><select id="onShow"><option value="">Quello che c'era</option></select></label>
+    <div class="actions"><button class="primary" id="btnVetrina" type="button"><span>Avvia modalità vetrina</span></button></div>
+  </section>
+
+  <!-- ============ BANNER ============ -->
+  <section class="view" id="view-dev" data-view="dev" hidden>
+    <div class="view-head"><h1>Banner</h1></div>
+    <div class="devcard">
+      <div><strong id="devName">Nessun banner collegato</strong><small id="devState">Tocca Collega e scegli “iledcolor” dall'elenco.</small></div>
+      <button class="secondary" id="btnConnect" type="button">Collega</button>
+    </div>
+    <div class="setting">
+      <div class="setting-head"><span>Schermo acceso</span><label class="switch"><input type="checkbox" id="sPower" checked><i></i></label></div>
+    </div>
+    <div class="setting">
+      <label class="field"><span>Luminosità generale <output id="sBriOut">8</output>/10</span><input type="range" id="sBri" min="1" max="10" value="8"></label>
+    </div>
+    <div class="setting">
+      <div class="setting-head"><span>Ora del banner</span><button class="ghost small" id="sTime" type="button">Sincronizza con il telefono</button></div>
+    </div>
+    <div class="setting">
+      <label class="field"><span>Formato colore dello schermo</span><select id="sColorType">
+        <option value="3">Colori pieni (24 bit)</option><option value="4">Colori 16 bit</option><option value="5">Colori 8 bit</option><option value="2">7 colori</option><option value="0">Monocromatico</option>
+      </select></label>
+      <button class="ghost" id="sWizard" type="button">Trova il formato giusto con 4 prove</button>
+      <div class="wizard" id="wizard" hidden></div>
+    </div>
+    <div class="setting">
+      <label class="field"><span>Dimensione pacchetti</span><select id="sPacket">
+        <option value="0">Automatica</option><option value="499">Grande (499 byte)</option><option value="240">Media (240)</option><option value="120">Piccola (120)</option><option value="20">Minima (20)</option>
+      </select></label>
+      <small class="note">Se gli invii falliscono o sono lenti, prova una misura diversa.</small>
+    </div>
+    <details class="setting log">
+      <summary>Registro di comunicazione</summary>
+      <pre id="log"></pre>
+      <button class="ghost small" id="copyLog" type="button">Copia registro</button>
+    </details>
+    <p class="hint">Puoi tenere installata anche l'app originale. Il banner accetta una sola connessione alla volta: chiudi del tutto l'altra prima di collegarti.</p>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Sezioni">
+  <button data-go="crea" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 17l9-9 3 3-9 9H4zM14 6l2-2 3 3-2 2z"/></svg>Crea</button>
+  <button data-go="lib"><svg viewBox="0 0 24 24"><path d="M4 5h16v3H4zM4 10.5h16v3H4zM4 16h16v3H4z"/></svg>Libreria</button>
+  <button data-go="play"><svg viewBox="0 0 24 24"><path d="M4 6h11v2H4zM4 11h11v2H4zM4 16h7v2H4zM16 13l5 3-5 3z"/></svg>Playlist</button>
+  <button data-go="time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 7h2v5.4l3.3 2-1 1.7L11 13.5z"/></svg>Orari</button>
+  <button data-go="dev"><svg viewBox="0 0 24 24"><path d="M3 7h18v10H3zM6 10h2v4H6zm4 0h2v4h-2zm4 0h2v4h-2z"/></svg>Banner</button>
+</nav>
+
+<div class="vetrina" id="vetrina" hidden>
+  <div class="v-inner">
+    <p class="v-clock" id="vClock">--:--</p>
+    <p class="v-state" id="vState">Modalità vetrina attiva</p>
+    <ul class="v-log" id="vLog"></ul>
+    <button class="secondary" id="vExit" type="button">Esci dalla vetrina</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+// Protocollo iLedColor (servizio A950) — ricostruito dall'app originale v1.0.59
+(function (root) {
+  const UUID = {
+    service: '0000a950-0000-1000-8000-00805f9b34fb',
+    cmd: '0000a951-0000-1000-8000-00805f9b34fb',   // comandi semplici
+    data: '0000a952-0000-1000-8000-00805f9b34fb',  // pacchetti dati
+    notify: '0000a953-0000-1000-8000-00805f9b34fb' // risposte
+  };
+
+  const u16 = n => [(n >> 8) & 255, n & 255];
+  const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const sum16 = arr => { let s = 0; for (let i = 0; i < arr.length; i++) s += arr[i]; return u16(s & 0xffff); };
+
+  // CRC-32C (Castagnoli), come crclib Crc32C()
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0x82F63B78 : c >>> 1;
+      t[i] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32c(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  // Comando semplice: 54 cmd LEN(2)=payload+2 payload... SUM(2)
+  function simpleCmd(cmd, payload = []) {
+    const head = [0x54, cmd & 255, ...u16(payload.length + 2), ...payload];
+    return Uint8Array.from([...head, ...sum16(head)]);
+  }
+
+  const CMD = {
+    DATA: 0x00, END: 0x01, PLAYLIST_ITEM: 0x03, PLAYLIST_DONE: 0x08,
+    PROGRAM: 0x06, BRIGHTNESS: 0x09, POWER: 0x0a, ROTATE: 0x0b, TIME: 0x0c, STATUS: 0x10
+  };
+
+  const cmdBrightness = level => simpleCmd(CMD.BRIGHTNESS, [11 - Math.max(1, Math.min(10, level)), 0, 0, 0, 0, 0, 0, 0, 0]);
+  const cmdPower = on => simpleCmd(CMD.POWER, [on ? 1 : 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const cmdStatus = () => simpleCmd(CMD.STATUS, [0]);
+  const cmdRotate = (rot, mirror) => simpleCmd(CMD.ROTATE, [([0, 1, 2, 4][rot] || 0) | ((mirror & 15) << 4)]);
+  function cmdTime(d = new Date()) {
+    return simpleCmd(CMD.TIME, [d.getFullYear() % 100, d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), 0]);
+  }
+
+  // --- Codifica pixel in base al "tipo colore" dello schermo ---
+  // rgba: Uint8ClampedArray w*h*4 ; ritorna array di byte
+  function encodeFrame(rgba, w, h, colorType) {
+    const out = [];
+    const px = i => [rgba[i], rgba[i + 1], rgba[i + 2]];
+    if (colorType === 3) {
+      for (let i = 0; i < w * h * 4; i += 4) out.push(rgba[i], rgba[i + 1], rgba[i + 2]);
+    } else if (colorType === 4) {
+      for (let i = 0; i < w * h * 4; i += 4) {
+        const [r, g, b] = px(i); const g6 = g >> 2, b5 = b >> 3;
+        out.push((r & 0xf8) | (g6 >> 3), ((g6 & 7) << 5) | b5);
+      }
+    } else if (colorType >= 5 && colorType <= 7) {
+      for (let i = 0; i < w * h * 4; i += 4) {
+        const [r, g, b] = px(i);
+        out.push((r & 0xe0) | ((g & 0xe0) >> 3) | ((b & 0xc0) >> 6));
+      }
+    } else if (colorType === 2) {
+      let cur = 0, half = 0;
+      for (let i = 0; i < w * h * 4; i += 4) {
+        const [r, g, b] = px(i);
+        if (half === 0) { cur = (r > 127 ? 0x10 : 0) | (g > 127 ? 0x20 : 0) | (b > 127 ? 0x40 : 0); half = 1; }
+        else { cur |= (r > 127 ? 1 : 0) | (g > 127 ? 2 : 0) | (b > 127 ? 4 : 0); out.push(cur); half = 0; }
+      }
+      if (half) out.push(cur);
+    } else { // 0/1 monocromatico 1 bit, MSB prima
+      let cur = 0, n = 0;
+      for (let i = 0; i < w * h * 4; i += 4) {
+        const [r, g, b] = px(i);
+        if (Math.round(r * 0.299 + g * 0.587 + b * 0.114) > 60) cur |= 0x80 >> n;
+        if (++n === 8) { out.push(cur); cur = 0; n = 0; }
+      }
+      if (n) out.push(cur);
+    }
+    return out;
+  }
+
+  // --- Elemento (ItemDataBean) ---
+  // type: 0 = striscia/testo, 1 = disegno, 2 = animazione, 3 = orologio
+  function itemBytes(it) {
+    const r = it.rect || { x: 0, y: 0, w: 96, h: 16 };
+    const out = [...u16(r.x), ...u16(r.y), ...u16(r.w), ...u16(r.h),
+      0, 0, 0,
+      it.type & 255, ...u16(it.frames.length),
+      (it.effect || 0) & 255, (it.speed || 0) & 255, (it.stay || 0) & 255,
+      (it.frameType || 0) & 255, (it.light == null ? 100 : it.light) & 255,
+      0, 0, 0];
+    for (const f of it.frames) for (let i = 0; i < f.length; i++) out.push(f[i]);
+    if (it.extra) out.push(...it.extra);
+    return out;
+  }
+
+  // Orologio del banner: un "fotogramma" di 14 byte
+  function clockFrame({ dayType = 0, dayColor = 7, timeType = 2, timeColor = 7, weekType = 0, weekColor = 7, textSize = 2 }) {
+    return [dayType, dayColor, timeType, timeColor, weekType, weekColor, textSize, 0, 0, 0, 0, 0, 0, 0];
+  }
+
+  // Programma (ProgrammeBean + SendParameter): crc(4) + [n,0,0,0] + 4 offset(4) + dati
+  function programBlob(items) {
+    const parts = items.map(itemBytes);
+    const data = [].concat(...parts);
+    const crc = crc32c(data);
+    const out = [...u32(crc), parts.length, 0, 0, 0];
+    let off = 0;
+    for (let i = 0; i < 4; i++) {
+      const len = parts[i] ? parts[i].length : 0;
+      out.push(...u32(len ? off : 0));
+      off += len;
+    }
+    for (let i = 0; i < data.length; i++) out.push(data[i]);
+    return { blob: Uint8Array.from(out), crc };
+  }
+
+  const cmdProgramStart = (crc, len) => simpleCmd(CMD.PROGRAM, [...u32(crc), ...u32(len), 0, 0, 0]);
+  const cmdPlaylistItem = (count, index, crc, len, playCount) =>
+    simpleCmd(CMD.PLAYLIST_ITEM, [count & 255, index & 255, ...u32(crc), ...u32(len), playCount & 255, 0, 0, 0]);
+  const cmdPlaylistDone = () => simpleCmd(CMD.PLAYLIST_DONE, [1]);
+
+  // Pacchetti dati: 54 00 LEN(2) IDX(4) CLEN(2) chunk SUM(2); poi 54 01 00 03 01 SUM
+  function dataPackets(blob, packetMax) {
+    const chunkMax = Math.max(1, packetMax - 12);
+    const packets = [];
+    for (let i = 0, idx = 0; i < blob.length; i += chunkMax, idx++) {
+      const chunk = Array.from(blob.subarray(i, i + chunkMax));
+      const body = [...u32(idx), ...u16(chunk.length), ...chunk];
+      const head = [0x54, 0x00, ...u16(body.length + 2), ...body];
+      packets.push(Uint8Array.from([...head, ...sum16(head)]));
+    }
+    packets.push(simpleCmd(CMD.END, [1]));
+    return packets;
+  }
+
+  // Interpretazione delle notifiche
+  function parseReply(d) {
+    if (!d || d.length < 5 || d[0] !== 0x54) return { kind: 'unknown' };
+    const cmd = d[1];
+    if (d.length === 11 && cmd === 0x00) return { kind: 'chunk', index: (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0, status: d[8], ok: d[8] === 1 };
+    if (cmd === CMD.STATUS && d.length > 8) {
+      const p = Array.from(d.slice(4, d.length - 2));
+      return { kind: 'status', raw: p, on: (p[2] & 1) === 1, brightness: 11 - p[3], rotate: p[4] & 15, mirror: p[4] >> 4 };
+    }
+    if (d.length === 7) return { kind: cmd === CMD.END ? 'end' : 'ack', cmd, status: d[4], ok: d[4] === 1 || d[4] === 3 };
+    return { kind: 'other', cmd, raw: Array.from(d) };
+  }
+
+  const api = { UUID, CMD, u16, u32, sum16, crc32c, simpleCmd, cmdBrightness, cmdPower, cmdStatus, cmdRotate, cmdTime,
+    encodeFrame, itemBytes, clockFrame, programBlob, cmdProgramStart, cmdPlaylistItem, cmdPlaylistDone, dataPackets, parseReply };
+  if (typeof module !== 'undefined') module.exports = api; else root.Proto = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+// Rendering: testo, immagini, sprite pixel, fotogrammi
+(function (root) {
+  const H = 16, W = 96;
+
+  function makeCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+    return c;
+  }
+  const ctx2d = c => c.getContext('2d', { willReadFrequently: true });
+
+  function hexToRgb(hex) {
+    const n = parseInt(String(hex).replace('#', ''), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+
+  function hsv(h, s, v) {
+    const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+  }
+
+  // ---------- Sprite pixel ("emoji pixel") ----------
+  // '.' = vuoto, lettere = colori della palette dello sprite, '#' = colore del testo
+  const SPRITES = {
+    cuore: { pal: { r: '#ff2a2a' }, rows: ['.rr...rr.', 'rrrr.rrrr', 'rrrrrrrrr', 'rrrrrrrrr', '.rrrrrrr.', '..rrrrr..', '...rrr...', '....r....'] },
+    stella: { pal: { y: '#ffd400' }, rows: ['....y....', '....y....', '...yyy...', 'yyyyyyyyy', '.yyyyyyy.', '..yyyyy..', '.yyy.yyy.', 'yy.....yy'] },
+    corsa: { pal: { o: '#ff8a00' }, rows: ['....oo..', '....oo..', '..ooo...', '.o.ooo..', '...o..o.', '..ooo...', '.o...o..', 'o....o..'] },
+    fuoco: { pal: { r: '#ff3b00', y: '#ffc400' }, rows: ['...r....', '..rr..r.', '..rrr.rr', '.rrryrrr', '.rryyyrr', 'rryyyyyr', 'rryyyyyr', '.rryyyr.'] },
+    sole: { pal: { y: '#ffd400' }, rows: ['y...y...y', '.y.....y.', '...yyy...', 'y.yyyyy.y', '..yyyyy..', '...yyy...', '.y.....y.', 'y...y...y'] },
+    smile: { pal: { y: '#ffd400', k: '#000000' }, rows: ['..yyyy..', '.yyyyyy.', 'yykyykyy', 'yyyyyyyy', 'ykyyyyky', 'yykkkkyy', '.yyyyyy.', '..yyyy..'] },
+    caffe: { pal: { w: '#ffffff', b: '#a0522d' }, rows: ['.w.w....', 'w.w.....', '........', 'bbbbbb..', 'bbbbbbbb', 'bbbbbb.b', 'bbbbbbb.', '.bbbb...'] },
+    nota: { pal: { c: '#33ccff' }, rows: ['...cccc', '...c..c', '...c..c', '...c..c', '.ccc.cc', 'cccc.cc', '.cc....', '.......'] },
+    ok: { pal: { g: '#22dd44' }, rows: ['.......g', '......gg', '.....gg.', 'g...gg..', 'gg.gg...', '.ggg....', '..g.....', '........'] },
+    freccia: { pal: {}, rows: ['....#...', '....##..', '#######.', '########', '#######.', '....##..', '....#...', '........'] },
+    medaglia: { pal: { b: '#2f6bff', r: '#ff2a2a', y: '#ffd400' }, rows: ['bb...rr', '.bb.rr.', '..brr..', '..yyy..', '.yyyyy.', '.yyyyy.', '.yyyyy.', '..yyy..'] },
+    pizza: { pal: { y: '#ffcc33', r: '#ff3300', o: '#cc7a00' }, rows: ['oooooooo', '.yyryyy.', '.yyyyry.', '..yryy..', '..yyyy..', '...yr...', '...yy...', '....y...'] }
+  };
+  const SPRITE_NAMES = Object.keys(SPRITES);
+
+  function drawSprite(ctx, name, x, y, scale, textRgb) {
+    const s = SPRITES[name];
+    s.rows.forEach((row, ry) => {
+      [...row].forEach((ch, rx) => {
+        if (ch === '.') return;
+        ctx.fillStyle = ch === '#' ? rgbToHex(...textRgb) : (s.pal[ch] || '#ffffff');
+        ctx.fillRect(x + rx * scale, y + ry * scale, scale, scale);
+      });
+    });
+    return s.rows[0].length * scale;
+  }
+
+  // ---------- Testo ----------
+  const FONTS = [
+    { id: 'silk', label: 'Pixel squadrato', css: '"Silkscreen"', sizes: [8, 16], pixel: true },
+    { id: 'tiny5', label: 'Pixel piccolo', css: '"Tiny5"', sizes: [8, 16], pixel: true },
+    { id: 'press', label: 'Pixel arcade', css: '"Press Start 2P"', sizes: [8, 16], pixel: true },
+    { id: 'vt', label: 'Terminale', css: '"VT323"', sizes: [16], pixel: true },
+    { id: 'pixelify', label: 'Pixel morbido', css: '"Pixelify Sans"', sizes: [11, 13, 16], pixel: true },
+    { id: 'bebas', label: 'Insegna stretto', css: '"Bebas Neue"', sizes: [12, 14, 16, 18], pixel: false },
+    { id: 'archivo', label: 'Bastone', css: '"Archivo"', sizes: [10, 12, 14, 16], pixel: false, weight: 700 },
+    { id: 'sans', label: 'Sistema', css: 'system-ui, sans-serif', sizes: [10, 12, 14, 16], pixel: false, weight: 700 }
+  ];
+
+  // segmenta il testo in parti: {t:'text', s} | {t:'sprite', name} | {t:'emoji', s}
+  function tokenize(str) {
+    const out = [];
+    const re = /:([a-z]+):/g;
+    let last = 0, m;
+    const pushText = s => {
+      if (!s) return;
+      const seg = (typeof Intl !== 'undefined' && Intl.Segmenter) ? [...new Intl.Segmenter('it', { granularity: 'grapheme' }).segment(s)].map(x => x.segment) : [...s];
+      let buf = '';
+      for (const g of seg) {
+        if (/\p{Extended_Pictographic}/u.test(g)) { if (buf) out.push({ t: 'text', s: buf }); buf = ''; out.push({ t: 'emoji', s: g }); }
+        else buf += g;
+      }
+      if (buf) out.push({ t: 'text', s: buf });
+    };
+    while ((m = re.exec(str))) {
+      if (SPRITES[m[1]]) { pushText(str.slice(last, m.index)); out.push({ t: 'sprite', name: m[1] }); last = re.lastIndex; }
+    }
+    pushText(str.slice(last));
+    return out;
+  }
+
+  function colorAt(mode, colors, x, y, w, charIndex) {
+    const a = hexToRgb(colors[0] || '#ffffff'), b = hexToRgb(colors[1] || colors[0] || '#ffffff');
+    const mix = t => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    switch (mode) {
+      case 'gradH': return mix(w > 1 ? x / (w - 1) : 0);
+      case 'gradV': return mix(y / (H - 1));
+      case 'rainbow': return hsv((x / Math.max(1, w)) * 330, 1, 1);
+      case 'alt': return charIndex % 2 ? b : a;
+      default: return a;
+    }
+  }
+
+  // Disegna il testo su una striscia alta 16 px. Ritorna canvas.
+  function renderText(o) {
+    const font = FONTS.find(f => f.id === o.font) || FONTS[0];
+    const size = o.size || font.sizes[font.sizes.length - 1];
+    const weight = font.weight || 400;
+    const cssFont = `${weight} ${size}px ${font.css}`;
+    const spacing = o.spacing || 0;
+    const parts = tokenize(o.text || '');
+    const measure = makeCanvas(10, 10).getContext('2d');
+    measure.font = cssFont;
+    // larghezze
+    const spriteScale = size >= 14 ? 2 : 1;
+    let width = 0;
+    const layout = [];
+    let charIndex = 0;
+    for (const p of parts) {
+      if (p.t === 'sprite') {
+        const w = SPRITES[p.name].rows[0].length * spriteScale;
+        layout.push({ ...p, x: width, w }); width += w + 1 + spacing;
+      } else {
+        for (const ch of (p.t === 'emoji' ? [p.s] : [...p.s])) {
+          const w = Math.ceil(p.t === 'emoji' ? size : measure.measureText(ch).width);
+          layout.push({ t: p.t, s: ch, x: width, w, ci: charIndex++ });
+          width += w + spacing + (o.bold ? 1 : 0);
+        }
+      }
+    }
+    width = Math.max(1, Math.ceil(width - spacing));
+    const mask = makeCanvas(width + 2, H), col = makeCanvas(width + 2, H);
+    const mc = ctx2d(mask), cc = ctx2d(col);
+    mc.font = cssFont; cc.font = `${size}px sans-serif`;
+    mc.textBaseline = 'alphabetic'; cc.textBaseline = 'alphabetic';
+    // baseline: centra verticalmente la cap-height
+    const m = measure.measureText('HÀg');
+    const asc = m.actualBoundingBoxAscent || size * 0.8, desc = m.actualBoundingBoxDescent || size * 0.2;
+    const capH = measure.measureText('H').actualBoundingBoxAscent || size * 0.7;
+    let base = o.withDescenders ? Math.round((H - (asc + desc)) / 2 + asc) : Math.round((H + capH) / 2);
+    base += (o.yOff || 0);
+    mc.fillStyle = '#fff';
+    const charOf = [];
+    for (const l of layout) {
+      if (l.t === 'text') {
+        mc.fillText(l.s, l.x, base);
+        if (o.bold) mc.fillText(l.s, l.x + 1, base);
+        charOf.push(l);
+      } else if (l.t === 'emoji') {
+        cc.font = `${size}px "Noto Color Emoji", sans-serif`;
+        cc.fillText(l.s, l.x, base);
+      } else if (l.t === 'sprite') {
+        const sh = SPRITES[l.name].rows.length * spriteScale;
+        drawSprite(cc, l.name, l.x, Math.round((H - sh) / 2) + (o.yOff || 0), spriteScale, hexToRgb(o.colors?.[0] || '#ffffff'));
+      }
+    }
+    // composizione con soglia
+    const out = makeCanvas(width, H), oc = ctx2d(out);
+    const img = oc.createImageData(width, H);
+    const md = mc.getImageData(0, 0, width, H).data, cd = cc.getImageData(0, 0, width, H).data;
+    const bg = o.bgOn ? hexToRgb(o.bg || '#000000') : [0, 0, 0];
+    const thr = font.pixel ? 100 : (o.threshold ?? 110);
+    for (let y = 0; y < H; y++) for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      let rgb = bg;
+      if (cd[i + 3] > 110) rgb = [cd[i], cd[i + 1], cd[i + 2]];
+      else if (md[i + 3] > thr) {
+        const li = charOf.findIndex(c => x >= c.x && x < c.x + c.w + 1);
+        rgb = colorAt(o.colorMode, o.colors || ['#ffffff'], x, y, width, li < 0 ? 0 : charOf[li].ci);
+      }
+      img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
+    }
+    oc.putImageData(img, 0, 0);
+    return out;
+  }
+
+  // ---------- Immagini ----------
+  // fit: 'height' (striscia lunga), 'width' (96 di larghezza), 'cover', 'contain'
+  function renderImage(src, o) {
+    const iw = src.naturalWidth || src.width, ih = src.naturalHeight || src.height;
+    let w, dx = 0, dy = 0, dw, dh;
+    if (o.fit === 'width' || o.fit === 'cover') {
+      w = W; const s = Math.max(W / iw, H / ih); dw = iw * s; dh = ih * s; dx = (W - dw) / 2; dy = (H - dh) * ((o.posY ?? 50) / 100);
+      if (o.fit === 'width') { const s2 = W / iw; dw = W; dh = ih * s2; dx = 0; dy = (H - dh) * ((o.posY ?? 50) / 100); }
+    } else if (o.fit === 'contain') {
+      w = W; const s = Math.min(W / iw, H / ih); dw = iw * s; dh = ih * s; dx = (W - dw) / 2; dy = (H - dh) / 2;
+    } else { // altezza 16, larghezza libera
+      const s = H / ih; dw = Math.max(1, Math.round(iw * s)); dh = H; w = Math.min(o.maxWidth || 1536, dw);
+    }
+    const c = makeCanvas(w, H), x = ctx2d(c);
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, H);
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(src, dx, dy, dw, dh);
+    const id = x.getImageData(0, 0, w, H); const d = id.data;
+    const con = (o.contrast ?? 0) / 100, sat = 1 + (o.saturation ?? 0) / 100, bri = (o.brightness ?? 0) * 2.55;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i + 1], b = d[i + 2];
+      const l = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      const f = (259 * (con * 255 + 255)) / (255 * (259 - con * 255));
+      r = f * (r - 128) + 128 + bri; g = f * (g - 128) + 128 + bri; b = f * (b - 128) + 128 + bri;
+      const nl = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (nl < (o.blackCut ?? 24)) r = g = b = 0;
+      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = 255;
+    }
+    x.putImageData(id, 0, 0);
+    return c;
+  }
+
+  // Limita i colori a una palette (per schermi a 7 colori), opzionale dithering
+  function quantize(canvas, colorType) {
+    const x = ctx2d(canvas), id = x.getImageData(0, 0, canvas.width, canvas.height), d = id.data;
+    const lv = colorType === 2 ? [0, 255] : colorType >= 5 && colorType <= 7 ? null : null;
+    if (!lv) return canvas;
+    for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) d[i + k] = d[i + k] > 127 ? 255 : 0;
+    x.putImageData(id, 0, 0);
+    return canvas;
+  }
+
+  // ---------- Striscia → fotogrammi 96×16 ----------
+  // align: 'left' (riempie a destra) | 'right' (riempie a sinistra)
+  function sliceStrip(strip, o = {}) {
+    let src = strip;
+    const bg = o.bg || '#000000';
+    if (o.loopJoin) { // aggiunge spazio e la prima schermata in coda: il giro si richiude senza vuoti
+      const gap = Math.max(0, o.gap || 0);
+      const c = makeCanvas(strip.width + gap + W, H), x = ctx2d(c);
+      x.fillStyle = bg; x.fillRect(0, 0, c.width, H);
+      x.drawImage(strip, 0, 0);
+      const head = makeCanvas(W, H), hx = ctx2d(head);
+      hx.fillStyle = bg; hx.fillRect(0, 0, W, H);
+      hx.drawImage(strip, 0, 0);
+      x.drawImage(head, strip.width + gap, 0);
+      src = c;
+    }
+    const total = Math.max(W, Math.ceil(src.width / W) * W);
+    const pad = total - src.width;
+    const full = makeCanvas(total, H), fx = ctx2d(full);
+    fx.fillStyle = bg; fx.fillRect(0, 0, total, H);
+    let ox = o.align === 'right' ? pad : 0;
+    if (o.center && src.width < W) ox = Math.floor((W - src.width) / 2);
+    fx.drawImage(src, ox, 0);
+    const frames = [];
+    for (let i = 0; i < total; i += W) {
+      frames.push(fx.getImageData(i, 0, W, H).data);
+    }
+    return { frames, full };
+  }
+
+  function canvasFromData(data, w = W, h = H) {
+    const c = makeCanvas(w, h); ctx2d(c).putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0); return c;
+  }
+
+  // Orologio (anteprima): formati come nel banner
+  const TIME_FORMATS = [null, 'HH:mm:ss', 'HH:mm', 'hh:mm:ss a', 'hh:mm a', 'hh:mm:ss', 'hh:mm'];
+  const DAY_FORMATS = [null, 'yyyy.MM.dd', 'MM.dd', 'yyyy-MM-dd', 'MM-dd', 'MM/dd/yyyy', 'MM/dd', 'dd/MM/yyyy', 'dd/MM', 'dd MMM yyyy', 'dd MMM', 'MMM dd,yyyy', 'MMM dd'];
+  const CLOCK_COLORS = [null, '#ff2a2a', '#22dd44', '#2f6bff', '#ffd400', '#ff33cc', '#22e5ff', '#ffffff'];
+  function fmt(d, f) {
+    const p = n => String(n).padStart(2, '0');
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    const h12 = d.getHours() % 12 || 12;
+    return f.replace('yyyy', d.getFullYear()).replace('MMM', M).replace('MM', p(d.getMonth() + 1)).replace('dd', p(d.getDate()))
+      .replace('HH', p(d.getHours())).replace('hh', p(h12)).replace('mm', p(d.getMinutes())).replace('ss', p(d.getSeconds()))
+      .replace(' a', d.getHours() < 12 ? ' AM' : ' PM');
+  }
+  function renderClockPreview(cfg, d = new Date()) {
+    const parts = [];
+    if (cfg.dayType) parts.push({ s: fmt(d, DAY_FORMATS[cfg.dayType]), c: CLOCK_COLORS[cfg.dayColor] });
+    if (cfg.timeType) parts.push({ s: fmt(d, TIME_FORMATS[cfg.timeType]), c: CLOCK_COLORS[cfg.timeColor] });
+    if (cfg.weekType) parts.push({ s: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][d.getDay()], c: CLOCK_COLORS[cfg.weekColor] });
+    const c = makeCanvas(W, H), x = ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+    const small = cfg.textSize === 1 || parts.length > 1;
+    const rows = small ? [parts.slice(0, 2), parts.slice(2)] : [parts];
+    x.textBaseline = 'middle'; x.textAlign = 'center';
+    rows.filter(r => r.length).forEach((row, ri, all) => {
+      const line = row.map(p => p.s).join(' ');
+      x.font = small ? '8px "Silkscreen"' : '16px "Silkscreen"';
+      const y = all.length > 1 ? (ri ? 12 : 4) : 8;
+      let cx = W / 2 - x.measureText(line).width / 2;
+      x.textAlign = 'left';
+      row.forEach(p => { x.fillStyle = p.c || '#fff'; x.fillText(p.s, cx, y + 1); cx += x.measureText(p.s + ' ').width; });
+    });
+    // soglia per pixel netti
+    const id = x.getImageData(0, 0, W, H); const dd = id.data;
+    for (let i = 0; i < dd.length; i += 4) { const a = Math.max(dd[i], dd[i + 1], dd[i + 2]); if (a < 110) { dd[i] = dd[i + 1] = dd[i + 2] = 0; } else { const k = 255 / a; dd[i] = Math.min(255, dd[i] * k); dd[i + 1] = Math.min(255, dd[i + 1] * k); dd[i + 2] = Math.min(255, dd[i + 2] * k); } }
+    x.putImageData(id, 0, 0);
+    return c;
+  }
+
+  root.Render = { W, H, makeCanvas, ctx2d, hexToRgb, rgbToHex, hsv, SPRITES, SPRITE_NAMES, drawSprite, FONTS, tokenize, renderText, renderImage, quantize, sliceStrip, canvasFromData, renderClockPreview, TIME_FORMATS, DAY_FORMATS, CLOCK_COLORS, fmt };
+})(window);
+
+// Collegamento Bluetooth al banner (Web Bluetooth)
+(function (root) {
+  const P = root.Proto;
+  const SIZES = [499, 240, 180, 120, 60, 20];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const hex = a => Array.from(a).map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+  class LedLink extends EventTarget {
+    constructor(log) {
+      super();
+      this.log = log || (() => {});
+      this.device = null; this.ch = {}; this.busy = false; this.waiters = [];
+      this.queue = Promise.resolve();
+      this.packetMax = Number(localStorage.getItem('ledlab.packetMax')) || 0; // 0 = automatico
+      this.wantConnected = false;
+    }
+    get connected() { return !!(this.device && this.device.gatt && this.device.gatt.connected && this.ch.cmd); }
+    static supported() { return !!(navigator.bluetooth && navigator.bluetooth.requestDevice); }
+
+    emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
+
+    async connect() {
+      this.device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'iledcolor' }, { namePrefix: 'iLedColor' }, { services: [P.UUID.service] }],
+        optionalServices: [P.UUID.service]
+      });
+      this.device.addEventListener('gattserverdisconnected', () => this._onDisconnect());
+      this.wantConnected = true;
+      await this._open();
+    }
+
+    async _open() {
+      this.emit('state', 'connecting');
+      const server = await this.device.gatt.connect();
+      const svc = await server.getPrimaryService(P.UUID.service);
+      this.ch.cmd = await svc.getCharacteristic(P.UUID.cmd);
+      this.ch.data = await svc.getCharacteristic(P.UUID.data);
+      this.ch.notify = await svc.getCharacteristic(P.UUID.notify);
+      this.ch.notify.addEventListener('characteristicvaluechanged', e => {
+        const v = e.target.value; this._onNotify(new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice());
+      });
+      await this.ch.notify.startNotifications();
+      this.log('Collegato a ' + (this.device.name || 'banner'));
+      this.emit('state', 'connected');
+      try { await this.command(P.cmdTime(), { expect: 0x0c, timeout: 1500 }); } catch (e) { this.log('Ora non sincronizzata: ' + e.message); }
+      await this.refreshStatus();
+    }
+
+    async reconnect() {
+      if (!this.device) throw new Error('Nessun banner scelto');
+      for (let i = 0; i < 5; i++) {
+        try { await this._open(); return; } catch (e) { this.log('Riconnessione fallita (' + (i + 1) + '/5): ' + e.message); await sleep(1500 * (i + 1)); }
+      }
+      this.emit('state', 'disconnected');
+    }
+
+    disconnect() {
+      this.wantConnected = false;
+      if (this.device && this.device.gatt.connected) this.device.gatt.disconnect();
+    }
+
+    _onDisconnect() {
+      this.ch = {};
+      this.log('Banner scollegato');
+      this.emit('state', 'disconnected');
+      this.waiters.forEach(w => { clearTimeout(w.t); w.reject(new Error('Collegamento perso')); });
+      this.waiters = [];
+      if (this.wantConnected && this.autoReconnect) setTimeout(() => this.reconnect().catch(() => {}), 1000);
+    }
+
+    _onNotify(d) {
+      const r = P.parseReply(d);
+      this.log('← ' + hex(d), 'rx');
+      if (r.kind === 'status') this.emit('status', r);
+      const i = this.waiters.findIndex(w => w.pred(r));
+      if (i >= 0) { const w = this.waiters.splice(i, 1)[0]; clearTimeout(w.t); w.resolve(r); }
+    }
+
+    waitFor(pred, timeout = 3000) {
+      return new Promise((resolve, reject) => {
+        const w = { pred, resolve, reject };
+        w.t = setTimeout(() => { this.waiters = this.waiters.filter(x => x !== w); reject(new Error('Nessuna risposta dal banner')); }, timeout);
+        this.waiters.push(w);
+      });
+    }
+
+    _write(ch, bytes) {
+      const job = this.queue.then(async () => {
+        if (!ch) throw new Error('Banner non collegato');
+        this.log('→ ' + hex(bytes.length > 40 ? bytes.slice(0, 40) : bytes) + (bytes.length > 40 ? ` … (${bytes.length} byte)` : ''), 'tx');
+        const p = ch.properties;
+        if (p.write || !p.writeWithoutResponse) await ch.writeValueWithResponse(bytes);
+        else await ch.writeValueWithoutResponse(bytes);
+      });
+      this.queue = job.catch(() => {});
+      return job;
+    }
+
+    async command(bytes, { expect, timeout = 2500, strict = false } = {}) {
+      let wait = expect != null ? this.waitFor(r => r.cmd === expect || (r.kind === 'status' && expect === 0x10), timeout) : null;
+      if (wait && !strict) wait = wait.catch(e => { this.log('Nessuna conferma dal banner (il comando potrebbe essere comunque arrivato)'); return null; });
+      try { await this._write(this.ch.cmd, bytes); }
+      catch (e) { if (wait) wait.catch(() => {}); throw e; }
+      return wait ? wait : null;
+    }
+
+    async refreshStatus() {
+      try { return await this.command(P.cmdStatus(), { expect: 0x10, timeout: 2000, strict: true }); }
+      catch (e) { this.log('Stato non disponibile: ' + e.message); return null; }
+    }
+
+    // Invia un blob programma. startFor(crc,len) costruisce il comando di avvio.
+    async _transfer(blob, crc, startFor, onProgress) {
+      const sizes = this.packetMax ? [this.packetMax, ...SIZES.filter(s => s < this.packetMax)] : SIZES;
+      let lastErr;
+      for (const size of sizes) {
+        try {
+          const start = startFor(crc, blob.length);
+          const ack = await this.command(start, { expect: start[1], timeout: 5000, strict: true });
+          if (!ack.ok) {
+            if (ack.status === 2) throw Object.assign(new Error('Il banner ha rifiutato i dati: memoria piena o contenuto troppo grande'), { fatal: true });
+            throw new Error('Avvio rifiutato (codice ' + ack.status + ')');
+          }
+          const packets = P.dataPackets(blob, size);
+          for (let i = 0; i < packets.length; i++) {
+            const last = i === packets.length - 1;
+            const wait = this.waitFor(r => last ? r.kind === 'end' : r.kind === 'chunk', 3500);
+            await this._write(this.ch.data, packets[i]);
+            const r = await wait;
+            if (!r.ok) throw new Error(last ? 'Il banner non ha confermato la fine' : 'Pacchetto ' + i + ' rifiutato (codice ' + r.status + ')');
+            onProgress && onProgress((i + 1) / packets.length);
+          }
+          if (this.packetMax !== size) { this.packetMax = size; try { localStorage.setItem('ledlab.packetMax', size); } catch (e) {} }
+          return;
+        } catch (e) {
+          lastErr = e;
+          if (e.fatal || !this.connected) throw e;
+          this.log(`Invio non riuscito con pacchetti da ${size} byte: ${e.message}. Riprovo più piccoli.`);
+          await sleep(600);
+        }
+      }
+      throw lastErr;
+    }
+
+    async sendProgram(items, onProgress) {
+      if (this.busy) throw new Error('Invio già in corso');
+      this.busy = true;
+      try {
+        const { blob, crc } = P.programBlob(items);
+        this.log(`Programma: ${items.length} elemento/i, ${blob.length} byte`);
+        await this._transfer(blob, crc, P.cmdProgramStart, onProgress);
+      } finally { this.busy = false; }
+    }
+
+    async sendPlaylist(programs, onProgress) {
+      if (this.busy) throw new Error('Invio già in corso');
+      this.busy = true;
+      try {
+        const n = programs.length;
+        for (let i = 0; i < n; i++) {
+          const { blob, crc } = P.programBlob(programs[i].items);
+          await this._transfer(blob, crc, (c, l) => P.cmdPlaylistItem(n, i, c, l, programs[i].playCount || 1),
+            p => onProgress && onProgress((i + p) / n));
+        }
+        await this.command(P.cmdPlaylistDone(), { expect: 0x08, timeout: 4000 });
+      } finally { this.busy = false; }
+    }
+  }
+  root.LedLink = LedLink;
+})(window);
+
+(function () {
+'use strict';
+const R = window.Render, P = window.Proto;
+const W = 96, H = 16;
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ledlab.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ledlab.' + k, JSON.stringify(v)); return true; } catch (e) { toast('Spazio del browser esaurito: elimina qualcosa dalla libreria', true); return false; } }
+};
+
+// ---------- registro ----------
+const logLines = [];
+function log(msg, kind) {
+  const t = new Date().toTimeString().slice(0, 8);
+  logLines.push(`${t} ${msg}`); if (logLines.length > 400) logLines.shift();
+  const el = $('#log'), det = $('.log');
+  if (el && det && det.open) { el.textContent = logLines.join('\n'); el.scrollTop = el.scrollHeight; }
+  if (kind !== 'rx' && kind !== 'tx') vlog(msg);
+}
+let toastT;
+function toast(msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', err ? 4800 : 2600);
+}
+
+// ---------- stato ----------
+const EFFECTS = [
+  { id: 'static', code: 0, label: 'Fermo' },
+  { id: 'contL', code: 1, label: 'Continuo ←', cont: true },
+  { id: 'left', code: 1, label: 'Scorre ←' },
+  { id: 'contR', code: 2, label: 'Continuo →', cont: true },
+  { id: 'right', code: 2, label: 'Scorre →' },
+  { id: 'up', code: 3, label: 'Sale' },
+  { id: 'down', code: 4, label: 'Scende' },
+  { id: 'snow', code: 5, label: 'Neve' },
+  { id: 'scroll', code: 6, label: 'Tendina' },
+  { id: 'laser', code: 7, label: 'Laser' }
+];
+const defaultEl = () => ({
+  id: uid(), name: '', kind: 'text',
+  text: { text: 'APERTO :cuore:', font: 'silk', size: 16, spacing: 1, yOff: 0, bold: false, colorMode: 'solid', colors: ['#ff3b30', '#ffd400'], bg: '#000000', bgOn: false },
+  image: { src: null, fit: 'height', contrast: 20, saturation: 40, brightness: 0, blackCut: 30, posY: 50 },
+  draw: { png: null, w: 96 },
+  anim: { frames: [], speed: 20 },
+  clock: { timeType: 2, timeColor: 1, dayType: 0, dayColor: 7, weekType: 0, weekColor: 4, textSize: 2 },
+  countdown: { target: '', format: 'dhm', prefix: 'GARA TRA', suffix: '', end: 'VIA!', every: 5 },
+  fx: { effect: 'contL', speed: 30, stay: 30, light: 100, join: true, gap: 24 }
+});
+const S = {
+  colorType: store.get('colorType', 3),
+  lib: store.get('items', []),
+  playlist: store.get('playlist', []),
+  sched: store.get('sched', { rules: [{ days: [1, 2, 3, 4, 5, 6], on: '09:00', off: '20:00' }], onShow: '' }),
+  el: store.get('draft', null) || defaultEl()
+};
+// compatibilità con bozze vecchie
+S.el = Object.assign(defaultEl(), S.el);
+const saveDraft = debounce(() => store.set('draft', S.el), 600);
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+// ---------- link Bluetooth ----------
+const link = new LedLink(log);
+link.addEventListener('state', e => updateLink(e.detail));
+link.addEventListener('status', e => {
+  const s = e.detail;
+  if (s.brightness >= 1 && s.brightness <= 10) { $('#sBri').value = s.brightness; $('#sBriOut').textContent = s.brightness; }
+  $('#sPower').checked = s.on;
+});
+function updateLink(state) {
+  const pill = $('#linkPill'); pill.dataset.state = state;
+  const name = link.device?.name || 'banner';
+  $('#linkLabel').textContent = state === 'connected' ? name : state === 'connecting' ? 'Collegamento…' : 'Collega banner';
+  $('#devName').textContent = state === 'connected' ? name : 'Nessun banner collegato';
+  $('#devState').textContent = state === 'connected' ? 'Collegato' : state === 'connecting' ? 'Collegamento in corso…' : 'Tocca Collega e scegli “iledcolor” dall\'elenco.';
+  $('#btnConnect').textContent = state === 'connected' ? 'Scollega' : 'Collega';
+}
+async function ensureLink() {
+  if (link.connected) return true;
+  if (!LedLink.supported()) { toast('Questo browser non supporta il Bluetooth. Usa Chrome su Android.', true); return false; }
+  try {
+    if (link.device && link.wantConnected) await link.reconnect(); else await link.connect();
+    return link.connected;
+  } catch (e) {
+    updateLink('disconnected');
+    if (e.name !== 'NotFoundError') toast('Collegamento non riuscito: ' + e.message, true);
+    return false;
+  }
+}
+$('#linkPill').onclick = () => link.connected ? go('dev') : ensureLink();
+$('#btnConnect').onclick = () => link.connected ? link.disconnect() : ensureLink();
+
+// ---------- navigazione ----------
+function go(v) {
+  $$('.view').forEach(s => s.hidden = s.dataset.view !== v);
+  $$('.tabs button').forEach(b => b.dataset.go === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  if (v === 'lib') renderLib(); if (v === 'play') renderPlaylist(); if (v === 'time') renderRules();
+  if (v === 'dev') { const l = $('#log'); l.textContent = logLines.join('\n'); }
+  window.scrollTo(0, 0);
+}
+$$('.tabs button').forEach(b => b.onclick = () => go(b.dataset.go));
+
+// ---------- logo ----------
+(function logo() {
+  const c = $('#logo'), x = c.getContext('2d');
+  x.fillStyle = '#E3262F';
+  // piccola onda di LED accesi
+  for (let col = 0; col < 22; col++) {
+    const y = Math.round(2.5 + 2.5 * Math.sin(col / 2.2));
+    x.fillRect(col * 2, y * 2, 2, 2);
+  }
+})();
+
+// ================= ANTEPRIMA LED =================
+const led = { canvas: $('#led'), player: null, t0: performance.now(), raf: 0 };
+function sizeLed() {
+  const c = led.canvas, r = c.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = Math.round(r.width * dpr); c.height = Math.round(r.width / 6 * dpr);
+}
+window.addEventListener('resize', () => { sizeLed(); });
+new ResizeObserver(() => sizeLed()).observe($('#led'));
+const offFrame = R.makeCanvas(W, H), offCtx = R.ctx2d(offFrame);
+const ledCache = { w: 0 };
+function ledLayers(cw, ch) {
+  if (ledCache.w === cw && ledCache.h === ch) return ledCache;
+  const p = cw / W, rad = p * 0.38;
+  const base = R.makeCanvas(cw, ch), bx = base.getContext('2d');
+  bx.fillStyle = '#16181c'; bx.fillRect(0, 0, cw, ch); bx.fillStyle = '#272a31';
+  const mask = R.makeCanvas(cw, ch), mx = mask.getContext('2d'); mx.fillStyle = '#fff';
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const cx = x * p + p / 2, cy = y * p + p / 2;
+    bx.beginPath(); bx.arc(cx, cy, rad, 0, 7); bx.fill();
+    mx.beginPath(); mx.arc(cx, cy, rad * 1.1, 0, 7); mx.fill();
+  }
+  Object.assign(ledCache, { w: cw, h: ch, base, mask, lit: R.makeCanvas(cw, ch) });
+  return ledCache;
+}
+function paintLed(img) { // img: ImageData 96x16
+  const c = led.canvas, x = c.getContext('2d');
+  if (!c.width) return;
+  const L = ledLayers(c.width, c.height);
+  const src = img.data, cp = new ImageData(W, H), d = cp.data, q = S.colorType === 2;
+  for (let i = 0; i < d.length; i += 4) {
+    let r = src[i], g = src[i + 1], b = src[i + 2];
+    if (q) { r = r > 127 ? 255 : 0; g = g > 127 ? 255 : 0; b = b > 127 ? 255 : 0; }
+    d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = r + g + b < 20 ? 0 : 255;
+  }
+  offCtx.putImageData(cp, 0, 0);
+  const lx = L.lit.getContext('2d');
+  lx.globalCompositeOperation = 'copy'; lx.imageSmoothingEnabled = false;
+  const k = (S.el.fx.light || 100) / 100 * 0.7 + 0.3;
+  lx.filter = k < 0.99 ? `brightness(${k})` : 'none';
+  lx.drawImage(offFrame, 0, 0, c.width, c.height); lx.filter = 'none';
+  lx.globalCompositeOperation = 'destination-in'; lx.drawImage(L.mask, 0, 0);
+  x.globalCompositeOperation = 'copy'; x.drawImage(L.base, 0, 0);
+  x.globalCompositeOperation = 'source-over';
+  // i LED neri restano spenti: disegno solo i pixel accesi sopra la base
+  x.drawImage(L.lit, 0, 0);
+  x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.45; x.filter = `blur(${Math.max(1.5, c.width / W * 0.5)}px)`;
+  x.drawImage(L.lit, 0, 0); x.filter = 'none'; x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+}
+function blank() { return new ImageData(W, H); }
+
+// Player: data una sorgente produce ImageData al tempo t (ms)
+function stripPlayer(strip, fx) {
+  const eff = EFFECTS.find(e => e.id === fx.effect) || EFFECTS[0];
+  const sliced = R.sliceStrip(strip, { align: eff.code === 2 ? 'right' : 'left', center: eff.code === 0 || eff.code > 2, loopJoin: eff.cont && fx.join, gap: fx.gap });
+  const full = sliced.full, fw = full.width;
+  const pxs = 6 + fx.speed * 2.4;              // px al secondo (indicativo)
+  const hold = 600 + fx.stay * 40;              // ms (indicativo)
+  const fc = R.ctx2d(full);
+  const frameImg = i => fc.getImageData(i * W, 0, W, H);
+  const frames = sliced.frames.length;
+  return t => {
+    offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, W, H);
+    if (eff.code === 1 || eff.code === 2) {
+      const dir = eff.code === 1 ? 1 : -1;
+      if (eff.cont) {
+        const period = fx.join ? fw - W : fw;
+        const off = (t / 1000 * pxs) % Math.max(1, period);
+        const x = dir === 1 ? -off : -(period - off);
+        offCtx.drawImage(full, Math.round(x), 0); if (dir === 1 && fx.join) offCtx.drawImage(full, Math.round(x + period), 0);
+        if (dir === -1 && fx.join) offCtx.drawImage(full, Math.round(x - period), 0);
+      } else {
+        const travel = fw + W, dur = travel / pxs * 1000 + hold;
+        const tt = t % dur, pos = Math.min(travel, tt / 1000 * pxs);
+        const x = dir === 1 ? W - pos : -fw + pos;
+        offCtx.drawImage(full, Math.round(x), 0);
+      }
+      return offCtx.getImageData(0, 0, W, H);
+    }
+    const per = hold + 500, idx = Math.floor(t / per) % frames, local = t % per;
+    const img = frameImg(idx);
+    if (eff.code === 0 || local > 500) return img;
+    const k = local / 500;
+    const tmp = R.makeCanvas(W, H); R.ctx2d(tmp).putImageData(img, 0, 0);
+    if (eff.code === 3 || eff.code === 4) { offCtx.drawImage(tmp, 0, Math.round((eff.code === 3 ? 1 : -1) * H * (1 - k))); }
+    else if (eff.code === 6 || eff.code === 7) { offCtx.drawImage(tmp, 0, 0, Math.ceil(W * k), H, 0, 0, Math.ceil(W * k), H); }
+    else { // neve: pixel che compaiono
+      const d = img.data, o = offCtx.getImageData(0, 0, W, H);
+      for (let i = 0; i < d.length; i += 4) if (((i * 2654435761) >>> 0) % 1000 < k * 1000) { o.data[i] = d[i]; o.data[i + 1] = d[i + 1]; o.data[i + 2] = d[i + 2]; }
+      return o;
+    }
+    return offCtx.getImageData(0, 0, W, H);
+  };
+}
+function animPlayer(frames, speed) {
+  const per = (41 - speed) * 25;
+  return t => frames.length ? frames[Math.floor(t / per) % frames.length] : blank();
+}
+function loop(now) {
+  if (led.player) { try { paintLed(led.player(now - led.t0)); } catch (e) { console.error(e); } }
+  led.raf = requestAnimationFrame(loop);
+}
+$('#btnNew').onclick = () => { const k = S.el.kind; S.el = defaultEl(); S.el.kind = k; if (k === 'text') S.el.text.text = ''; drawState.ready = false; bindAll(); setKind(k); toast('Nuovo contenuto'); };
+$('#btnReplay').onclick = () => { led.t0 = performance.now(); };
+
+// ================= COSTRUZIONE CONTENUTI =================
+const imgCache = new Map();
+function loadImage(src) {
+  if (!src) return Promise.resolve(null);
+  if (imgCache.has(src)) return imgCache.get(src);
+  const p = new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  imgCache.set(src, p); return p;
+}
+async function fontsReady(el) {
+  const f = R.FONTS.find(f => f.id === el.text.font) || R.FONTS[0];
+  try { await document.fonts.load(`${f.weight || 400} ${el.text.size}px ${f.css}`, el.text.text || 'A'); await document.fonts.load('16px "Silkscreen"'); } catch (e) {}
+}
+function countdownText(c, now = new Date()) {
+  if (!c.target) return (c.prefix ? c.prefix + ' ' : '') + '--';
+  const ms = new Date(c.target) - now;
+  if (ms <= 0) return c.end || '';
+  const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mi = m % 60;
+  const p = n => String(n).padStart(2, '0');
+  let s;
+  if (c.format === 'd') s = `${Math.ceil(ms / 86400000)} ${Math.ceil(ms / 86400000) === 1 ? 'GIORNO' : 'GIORNI'}`;
+  else if (c.format === 'hm') s = `${p(Math.floor(m / 60))}:${p(mi)}`;
+  else if (c.format === 'dd') s = `-${Math.ceil(ms / 86400000)}`;
+  else s = d > 0 ? `${d}g ${p(h)}h ${p(mi)}m` : `${p(h)}h ${p(mi)}m`;
+  return [c.prefix, s, c.suffix].filter(Boolean).join(' ');
+}
+// Ritorna canvas striscia per testo/immagine/disegno/conto alla rovescia
+async function buildStrip(el) {
+  if (el.kind === 'text' || el.kind === 'countdown') {
+    await fontsReady(el);
+    const t = el.kind === 'countdown' ? { ...el.text, text: countdownText(el.countdown) } : el.text;
+    return R.renderText(t);
+  }
+  if (el.kind === 'image') {
+    const img = await loadImage(el.image.src);
+    if (!img) { const c = R.makeCanvas(W, H); R.ctx2d(c).fillRect(0, 0, W, H); return c; }
+    return R.renderImage(img, el.image);
+  }
+  if (el.kind === 'draw') return drawCanvas();
+  return R.makeCanvas(W, H);
+}
+async function buildAnimFrames(el) {
+  return Promise.all(el.anim.frames.map(async png => { const i = await loadImage(png); const c = R.makeCanvas(W, H); const x = R.ctx2d(c); x.drawImage(i, 0, 0); return x.getImageData(0, 0, W, H); }));
+}
+// Elementi pronti per il protocollo
+async function buildItems(el) {
+  const fx = el.fx, eff = EFFECTS.find(e => e.id === fx.effect) || EFFECTS[0];
+  const light = clamp(fx.light | 0, 5, 100);
+  if (el.kind === 'clock') {
+    const c = el.clock;
+    return [{ type: 3, frames: [P.clockFrame(c)], effect: 0, speed: 0, stay: 250, light, frameType: 0 }];
+  }
+  if (el.kind === 'anim') {
+    const fr = await buildAnimFrames(el);
+    if (!fr.length) throw new Error('L\'animazione non ha fotogrammi');
+    const sp = 41 - el.anim.speed;
+    return [{ type: 2, frames: fr.map(f => P.encodeFrame(f.data, W, H, S.colorType)), effect: 0, speed: sp, stay: Math.max(10, fx.stay), light, frameType: 0,
+      extra: [].concat(...fr.map(() => P.u16(sp))) }];
+  }
+  const strip = el.kind === 'draw' ? drawCanvas() : await buildStrip(el);
+  const sliced = R.sliceStrip(strip, { align: eff.code === 2 ? 'right' : 'left', center: eff.code === 0 || eff.code > 2, loopJoin: eff.cont && fx.join, gap: fx.gap });
+  return [{ type: 0, frames: sliced.frames.map(f => P.encodeFrame(f, W, H, S.colorType)), effect: eff.code, speed: 51 - fx.speed, stay: eff.cont ? 0 : fx.stay, light, frameType: 0 }];
+}
+
+// ================= EDITOR: aggiornamento anteprima =================
+let previewToken = 0;
+const refresh = debounce(async () => {
+  const tok = ++previewToken, el = S.el;
+  saveDraft();
+  try {
+    if (el.kind === 'clock') {
+      led.player = () => R.ctx2d(R.renderClockPreview(el.clock)).getImageData(0, 0, W, H);
+      $('#previewInfo').textContent = 'Anteprima indicativa: il banner usa i suoi caratteri';
+      return;
+    }
+    if (el.kind === 'anim') {
+      const fr = await buildAnimFrames(el); if (tok !== previewToken) return;
+      led.player = animPlayer(fr, el.anim.speed);
+      $('#previewInfo').textContent = `${fr.length} fotogrammi`;
+      return;
+    }
+    const strip = await buildStrip(el); if (tok !== previewToken) return;
+    led.player = stripPlayer(strip, el.fx);
+    const pages = Math.max(1, Math.ceil(strip.width / W));
+    $('#previewInfo').textContent = `${strip.width} × 16 px · ${pages} ${pages === 1 ? 'schermata' : 'schermate'}`;
+  } catch (e) { console.error(e); }
+}, 120);
+
+// ---------- tipo contenuto ----------
+function setKind(k) {
+  if (k === 'draw' && !drawState.ready) loadDrawFrom(S.el.draw.png, S.el.draw.w);
+  S.el.kind = k;
+  $$('.kinds button').forEach(b => b.setAttribute('aria-selected', b.dataset.kind === k));
+  $$('.kind-pane').forEach(p => p.hidden = p.dataset.pane !== k);
+  const ed = $('#drawEditor');
+  if (k === 'anim') { $('#aEditorSlot').appendChild(ed); $('#dWidthBar').hidden = true; renderFrames(); selectFrame(aSel); }
+  else if (k === 'draw') { $('[data-pane=draw]').appendChild(ed); $('#dWidthBar').hidden = false; if (drawState.target !== 'draw') loadDrawFrom(S.el.draw.png, S.el.draw.w); }
+  $('#fxBox').hidden = k === 'clock';
+  updateFxUi();
+  refresh();
+}
+$$('.kinds button').forEach(b => b.onclick = () => setKind(b.dataset.kind));
+
+// ---------- testo ----------
+function fillFonts() {
+  $('#tFont').innerHTML = R.FONTS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+}
+function fillSizes() {
+  const f = R.FONTS.find(f => f.id === S.el.text.font) || R.FONTS[0];
+  const sizes = f.pixel ? f.sizes : [8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20];
+  if (!sizes.includes(S.el.text.size)) S.el.text.size = f.sizes[f.sizes.length - 1];
+  $('#tSize').innerHTML = sizes.map(s => `<option value="${s}">${s} px</option>`).join('');
+  $('#tSize').value = S.el.text.size;
+}
+function bindText() {
+  const t = S.el.text;
+  $('#tText').value = t.text; $('#tFont').value = t.font; fillSizes();
+  $('#tSpacing').value = t.spacing; $('#tYOff').value = t.yOff; $('#tBold').checked = t.bold;
+  $('#tColor1').value = t.colors[0]; $('#tColor2').value = t.colors[1]; $('#tBg').value = t.bg; $('#tBgOn').checked = t.bgOn;
+  setSeg('#tColorMode', t.colorMode); $('#tColor2Wrap').hidden = !['gradH', 'gradV', 'alt'].includes(t.colorMode);
+}
+$('#tText').oninput = e => { S.el.text.text = e.target.value; refresh(); };
+$('#tFont').onchange = e => { S.el.text.font = e.target.value; fillSizes(); refresh(); };
+$('#tSize').onchange = e => { S.el.text.size = +e.target.value; refresh(); };
+$('#tSpacing').oninput = e => { S.el.text.spacing = +e.target.value || 0; refresh(); };
+$('#tYOff').oninput = e => { S.el.text.yOff = +e.target.value || 0; refresh(); };
+$('#tBold').onchange = e => { S.el.text.bold = e.target.checked; refresh(); };
+$('#tColor1').oninput = e => { S.el.text.colors[0] = e.target.value; refresh(); };
+$('#tColor2').oninput = e => { S.el.text.colors[1] = e.target.value; refresh(); };
+$('#tBg').oninput = e => { S.el.text.bg = e.target.value; S.el.text.bgOn = true; $('#tBgOn').checked = true; refresh(); };
+$('#tBgOn').onchange = e => { S.el.text.bgOn = e.target.checked; refresh(); };
+segBind('#tColorMode', v => { S.el.text.colorMode = v; $('#tColor2Wrap').hidden = !['gradH', 'gradV', 'alt'].includes(v); refresh(); });
+function setSeg(sel, v) { $$(sel + ' button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === String(v))); }
+function segBind(sel, fn) { $$(sel + ' button').forEach(b => b.onclick = e => { e.preventDefault(); setSeg(sel, b.dataset.v); fn(b.dataset.v); }); }
+(function spriteBar() {
+  const bar = $('#spriteBar');
+  R.SPRITE_NAMES.forEach(n => {
+    const b = document.createElement('button'); b.type = 'button'; b.title = ':' + n + ':'; b.setAttribute('aria-label', 'Inserisci ' + n);
+    const s = R.SPRITES[n]; const c = R.makeCanvas(s.rows[0].length, s.rows.length); R.drawSprite(R.ctx2d(c), n, 0, 0, 1, [255, 255, 255]);
+    b.appendChild(c);
+    b.onclick = () => { const ta = $('#tText'), p = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, p) + `:${n}:` + ta.value.slice(p); ta.focus(); S.el.text.text = ta.value; refresh(); };
+    bar.appendChild(b);
+  });
+})();
+$('#tToDraw').onclick = async () => { const c = await buildStrip(S.el); toDraw(c); };
+
+// ---------- immagine ----------
+function bindImage() {
+  const i = S.el.image; setSeg('#iFit', i.fit);
+  $('#iContrast').value = i.contrast; $('#iSat').value = i.saturation; $('#iBri').value = i.brightness; $('#iBlack').value = i.blackCut; $('#iPosY').value = i.posY;
+  $('#iDropLabel').textContent = i.src ? 'Cambia immagine' : 'Scegli un\'immagine o una GIF';
+}
+segBind('#iFit', v => { S.el.image.fit = v; refresh(); });
+[['#iContrast', 'contrast'], ['#iSat', 'saturation'], ['#iBri', 'brightness'], ['#iBlack', 'blackCut'], ['#iPosY', 'posY']].forEach(([s, k]) => $(s).oninput = e => { S.el.image[k] = +e.target.value; refresh(); });
+function fileToDataUrl(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
+async function shrinkImage(dataUrl, maxH = 64, maxW = 4000) {
+  const img = await loadImage(dataUrl);
+  const s = Math.min(1, maxH / img.naturalHeight, maxW / img.naturalWidth);
+  const c = R.makeCanvas(img.naturalWidth * s, img.naturalHeight * s); const x = R.ctx2d(c);
+  x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height); return c.toDataURL('image/png');
+}
+$('#iFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (/gif|webp/.test(f.type) && 'ImageDecoder' in window) {
+    const frames = await decodeAnimated(f).catch(() => null);
+    if (frames && frames.length > 1) { S.el.anim.frames = frames; toast(`GIF animata: ${frames.length} fotogrammi in Animazione`); setKind('anim'); e.target.value = ''; return; }
+  }
+  S.el.image.src = await shrinkImage(await fileToDataUrl(f));
+  bindImage(); refresh(); e.target.value = '';
+};
+$('#iToDraw').onclick = async () => { const c = await buildStrip(S.el); toDraw(c); };
+
+async function decodeAnimated(file) {
+  const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type });
+  await dec.tracks.ready; const n = Math.min(60, dec.tracks.selectedTrack.frameCount);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const { image } = await dec.decode({ frameIndex: i });
+    const c = R.makeCanvas(W, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+    const s = Math.min(W / image.displayWidth, H / image.displayHeight);
+    const w = image.displayWidth * s, h = image.displayHeight * s;
+    x.drawImage(image, (W - w) / 2, (H - h) / 2, w, h); image.close();
+    out.push(c.toDataURL('image/png'));
+  }
+  return out;
+}
+
+// ================= EDITOR DISEGNO =================
+const PALETTE = ['#ffffff', '#ff2a2a', '#ff8a00', '#ffd400', '#22dd44', '#22e5ff', '#2f6bff', '#a050ff', '#ff33cc', '#000000'];
+const drawState = { canvas: R.makeCanvas(96, H), tool: 'pen', color: '#ff2a2a', zoom: 16, undo: [], redo: [], target: 'draw', ready: false, down: false };
+function drawCanvas() { return drawState.canvas; }
+function loadDrawFrom(png, w = 96) {
+  const c = R.makeCanvas(w, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, w, H);
+  drawState.canvas = c; drawState.undo = []; drawState.redo = []; drawState.target = 'draw'; drawState.ready = true;
+  $('#dWidth').value = w;
+  if (png) loadImage(png).then(i => { x.drawImage(i, 0, 0); paintGrid(); refresh(); }); else paintGrid();
+}
+function toDraw(srcCanvas) {
+  const w = clamp(srcCanvas.width, 16, 1536);
+  const c = R.makeCanvas(w, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, w, H); x.drawImage(srcCanvas, 0, 0);
+  S.el.draw = { png: c.toDataURL('image/png'), w };
+  drawState.canvas = c; drawState.undo = []; drawState.redo = []; drawState.ready = true; drawState.target = 'draw';
+  setKind('draw'); paintGrid(); toast('Ora puoi correggere i singoli pixel');
+}
+function commitDraw() {
+  const png = drawState.canvas.toDataURL('image/png');
+  if (drawState.target === 'draw') S.el.draw = { png, w: drawState.canvas.width };
+  else { S.el.anim.frames[aSel] = png; renderFrames(); }
+  refresh();
+}
+const commitDrawSoon = debounce(commitDraw, 250);
+function paintGrid() {
+  const g = $('#grid'), z = drawState.zoom, w = drawState.canvas.width;
+  g.width = w * z; g.height = H * z; g.style.width = w * z + 'px'; g.style.height = H * z + 'px';
+  const x = g.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.fillStyle = '#16181c'; x.fillRect(0, 0, g.width, g.height);
+  const d = R.ctx2d(drawState.canvas).getImageData(0, 0, w, H).data;
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < w; xx++) {
+    const i = (yy * w + xx) * 4;
+    x.fillStyle = (d[i] | d[i + 1] | d[i + 2]) ? `rgb(${d[i]},${d[i + 1]},${d[i + 2]})` : '#262930';
+    x.fillRect(xx * z + 1, yy * z + 1, z - 2, z - 2);
+  }
+  x.fillStyle = 'rgba(227,38,47,.8)';
+  for (let px = W; px < w; px += W) x.fillRect(px * z - 1, 0, 2, g.height);
+}
+function pushUndo() { drawState.undo.push(R.ctx2d(drawState.canvas).getImageData(0, 0, drawState.canvas.width, H)); if (drawState.undo.length > 40) drawState.undo.shift(); drawState.redo = []; }
+function setPx(px, py, rgb) { const x = R.ctx2d(drawState.canvas); x.fillStyle = rgb; x.fillRect(px, py, 1, 1); }
+function getPx(px, py) { const d = R.ctx2d(drawState.canvas).getImageData(px, py, 1, 1).data; return R.rgbToHex(d[0], d[1], d[2]); }
+function flood(px, py, col) {
+  const w = drawState.canvas.width, x = R.ctx2d(drawState.canvas), id = x.getImageData(0, 0, w, H), d = id.data;
+  const at = (a, b) => (b * w + a) * 4, s = at(px, py), tr = d[s], tg = d[s + 1], tb = d[s + 2];
+  const [r, g, b] = R.hexToRgb(col); if (tr === r && tg === g && tb === b) return;
+  const st = [[px, py]];
+  while (st.length) { const [a, c] = st.pop(); if (a < 0 || c < 0 || a >= w || c >= H) continue; const i = at(a, c); if (d[i] !== tr || d[i + 1] !== tg || d[i + 2] !== tb) continue; d[i] = r; d[i + 1] = g; d[i + 2] = b; st.push([a + 1, c], [a - 1, c], [a, c + 1], [a, c - 1]); }
+  x.putImageData(id, 0, 0);
+}
+function gridPos(e) { const r = $('#grid').getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / drawState.zoom), Math.floor((e.clientY - r.top) / drawState.zoom)]; }
+function applyTool(e, first) {
+  const [px, py] = gridPos(e); if (px < 0 || py < 0 || px >= drawState.canvas.width || py >= H) return;
+  const t = drawState.tool;
+  if (t === 'pick') { drawState.color = getPx(px, py); renderPalette(); return; }
+  if (first) pushUndo();
+  if (t === 'fill') { if (first) flood(px, py, drawState.color); }
+  else setPx(px, py, t === 'erase' ? '#000000' : drawState.color);
+  paintGrid(); commitDrawSoon();
+}
+const grid = $('#grid');
+grid.addEventListener('pointerdown', e => { if (drawState.tool === 'pan') return; drawState.down = true; grid.setPointerCapture(e.pointerId); applyTool(e, true); });
+grid.addEventListener('pointermove', e => { if (drawState.down && drawState.tool !== 'fill') applyTool(e, false); });
+['pointerup', 'pointercancel'].forEach(ev => grid.addEventListener(ev, () => { drawState.down = false; }));
+segBind('#dTool', v => { drawState.tool = v; grid.style.touchAction = v === 'pan' ? 'pan-x pan-y' : 'none'; grid.style.cursor = v === 'pan' ? 'grab' : 'crosshair'; });
+function renderPalette() {
+  const p = $('#dPalette'); p.innerHTML = '';
+  PALETTE.forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', 'Colore ' + c); b.setAttribute('aria-pressed', c === drawState.color); b.onclick = () => { drawState.color = c; if (drawState.tool === 'erase' || drawState.tool === 'pick') { drawState.tool = 'pen'; setSeg('#dTool', 'pen'); } renderPalette(); }; p.appendChild(b); });
+  const inp = document.createElement('input'); inp.type = 'color'; inp.value = drawState.color; inp.setAttribute('aria-label', 'Altro colore'); inp.oninput = () => { drawState.color = inp.value; }; p.appendChild(inp);
+}
+$('#dUndo').onclick = () => { const u = drawState.undo.pop(); if (!u) return; drawState.redo.push(R.ctx2d(drawState.canvas).getImageData(0, 0, drawState.canvas.width, H)); R.ctx2d(drawState.canvas).putImageData(u, 0, 0); paintGrid(); commitDraw(); };
+$('#dRedo').onclick = () => { const u = drawState.redo.pop(); if (!u) return; drawState.undo.push(R.ctx2d(drawState.canvas).getImageData(0, 0, drawState.canvas.width, H)); R.ctx2d(drawState.canvas).putImageData(u, 0, 0); paintGrid(); commitDraw(); };
+$('#dZoom').oninput = e => { drawState.zoom = +e.target.value; paintGrid(); };
+$$('[data-nudge]').forEach(b => b.onclick = () => {
+  const [dx, dy] = b.dataset.nudge.split(',').map(Number); pushUndo();
+  const c = drawState.canvas, tmp = R.makeCanvas(c.width, H); R.ctx2d(tmp).drawImage(c, 0, 0);
+  const x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, c.width, H); x.drawImage(tmp, dx, dy); paintGrid(); commitDraw();
+});
+$('#dFlipH').onclick = () => { pushUndo(); const c = drawState.canvas, tmp = R.makeCanvas(c.width, H); R.ctx2d(tmp).drawImage(c, 0, 0); const x = R.ctx2d(c); x.save(); x.scale(-1, 1); x.drawImage(tmp, -c.width, 0); x.restore(); paintGrid(); commitDraw(); };
+$('#dClear').onclick = () => { pushUndo(); const x = R.ctx2d(drawState.canvas); x.fillStyle = '#000'; x.fillRect(0, 0, drawState.canvas.width, H); paintGrid(); commitDraw(); };
+$('#dWidth').onchange = e => {
+  const w = clamp(Math.round(+e.target.value || 96), 16, 1536); e.target.value = w;
+  const old = drawState.canvas, c = R.makeCanvas(w, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, w, H); x.drawImage(old, 0, 0);
+  pushUndo(); drawState.canvas = c; paintGrid(); commitDraw();
+};
+
+// ================= ANIMAZIONE =================
+let aSel = 0;
+function blankPng() { const c = R.makeCanvas(W, H); const x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, W, H); return c.toDataURL('image/png'); }
+function renderFrames() {
+  const box = $('#aFrames'); box.innerHTML = '';
+  if (!S.el.anim.frames.length) S.el.anim.frames.push(blankPng());
+  S.el.anim.frames.forEach((png, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', i === aSel); b.setAttribute('aria-label', 'Fotogramma ' + (i + 1));
+    const c = R.makeCanvas(W, H); loadImage(png).then(img => R.ctx2d(c).drawImage(img, 0, 0));
+    b.append(c); const s = document.createElement('small'); s.textContent = i + 1; b.append(s);
+    b.onclick = () => selectFrame(i); box.appendChild(b);
+  });
+  $('#aSpeed').value = S.el.anim.speed; $('#aSpeedOut').textContent = S.el.anim.speed;
+}
+function selectFrame(i) {
+  aSel = clamp(i, 0, S.el.anim.frames.length - 1);
+  $$('#aFrames button').forEach((b, j) => b.setAttribute('aria-pressed', j === aSel));
+  const c = R.makeCanvas(W, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  drawState.canvas = c; drawState.undo = []; drawState.redo = []; drawState.target = 'anim'; drawState.ready = false;
+  loadImage(S.el.anim.frames[aSel]).then(img => { x.drawImage(img, 0, 0); paintGrid(); });
+}
+$('#aAdd').onclick = () => { S.el.anim.frames.splice(aSel + 1, 0, blankPng()); renderFrames(); selectFrame(aSel + 1); refresh(); };
+$('#aDup').onclick = () => { S.el.anim.frames.splice(aSel + 1, 0, S.el.anim.frames[aSel]); renderFrames(); selectFrame(aSel + 1); refresh(); };
+$('#aDel').onclick = () => { if (S.el.anim.frames.length <= 1) return; S.el.anim.frames.splice(aSel, 1); renderFrames(); selectFrame(aSel - 1); refresh(); };
+$('#aLeft').onclick = () => { if (aSel < 1) return; const f = S.el.anim.frames; [f[aSel - 1], f[aSel]] = [f[aSel], f[aSel - 1]]; renderFrames(); selectFrame(aSel - 1); refresh(); };
+$('#aRight').onclick = () => { const f = S.el.anim.frames; if (aSel >= f.length - 1) return; [f[aSel + 1], f[aSel]] = [f[aSel], f[aSel + 1]]; renderFrames(); selectFrame(aSel + 1); refresh(); };
+$('#aSpeed').oninput = e => { S.el.anim.speed = +e.target.value; $('#aSpeedOut').textContent = e.target.value; refresh(); };
+$('#aFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (!('ImageDecoder' in window)) { toast('Questo browser non sa leggere le GIF animate', true); return; }
+  try { const fr = await decodeAnimated(f); S.el.anim.frames = fr; aSel = 0; renderFrames(); selectFrame(0); refresh(); toast(`${fr.length} fotogrammi importati`); }
+  catch (err) { toast('GIF non leggibile: ' + err.message, true); }
+  e.target.value = '';
+};
+
+// ================= OROLOGIO =================
+function bindClock() {
+  const c = S.el.clock;
+  $('#cTime').innerHTML = R.TIME_FORMATS.map((f, i) => `<option value="${i}">${f ? f.replace('HH', '24h ').replace('hh', '12h ').replace(':mm', 'mm').replace(':ss', ' ss').replace(' a', ' AM/PM') : 'Nessuna'}</option>`).join('');
+  $('#cTime').innerHTML = ['Nessuna', '14:05:09', '14:05', '02:05:09 PM', '02:05 PM', '02:05:09', '02:05'].map((l, i) => `<option value="${i}">${l}</option>`).join('');
+  $('#cDay').innerHTML = R.DAY_FORMATS.map((f, i) => `<option value="${i}">${f ? R.fmt(new Date(2026, 10, 21), f) : 'Nessuna'}</option>`).join('');
+  const names = [null, 'Rosso', 'Verde', 'Blu', 'Giallo', 'Magenta', 'Azzurro', 'Bianco'];
+  $$('.colorsel').forEach(s => s.innerHTML = names.map((n, i) => n ? `<option value="${i}">${n}</option>` : '').join(''));
+  $('#cTime').value = c.timeType; $('#cTimeColor').value = c.timeColor; $('#cDay').value = c.dayType; $('#cDayColor').value = c.dayColor;
+  $('#cWeek').value = c.weekType; $('#cWeekColor').value = c.weekColor; $('#cSize').value = c.textSize;
+}
+[['#cTime', 'timeType'], ['#cTimeColor', 'timeColor'], ['#cDay', 'dayType'], ['#cDayColor', 'dayColor'], ['#cWeek', 'weekType'], ['#cWeekColor', 'weekColor'], ['#cSize', 'textSize']]
+  .forEach(([s, k]) => $(s).onchange = e => { S.el.clock[k] = +e.target.value; refresh(); });
+
+// ================= CONTO ALLA ROVESCIA =================
+function bindCountdown() {
+  const c = S.el.countdown;
+  $('#kTarget').value = c.target; $('#kFormat').value = c.format; $('#kPrefix').value = c.prefix; $('#kSuffix').value = c.suffix; $('#kEnd').value = c.end; $('#kEvery').value = c.every;
+}
+[['#kTarget', 'target'], ['#kFormat', 'format'], ['#kPrefix', 'prefix'], ['#kSuffix', 'suffix'], ['#kEnd', 'end'], ['#kEvery', 'every']]
+  .forEach(([s, k]) => $(s).oninput = e => { S.el.countdown[k] = k === 'every' ? +e.target.value : e.target.value; refresh(); });
+
+// ================= MOVIMENTO =================
+function renderFx() {
+  $('#fxEffect').innerHTML = '';
+  EFFECTS.forEach(ef => { const b = document.createElement('button'); b.type = 'button'; b.textContent = ef.label; b.dataset.v = ef.id; b.onclick = () => { S.el.fx.effect = ef.id; updateFxUi(); refresh(); }; $('#fxEffect').appendChild(b); });
+}
+function updateFxUi() {
+  const fx = S.el.fx, ef = EFFECTS.find(e => e.id === fx.effect) || EFFECTS[0];
+  $$('#fxEffect button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === fx.effect));
+  const anim = S.el.kind === 'anim';
+  $('#fxEffect').hidden = anim;
+  $('#fxContBox').hidden = !ef.cont || anim;
+  $('#fxSpeedBox').hidden = anim || ef.code === 0;
+  $('#fxStayBox').hidden = !anim && ef.cont;
+  $('#fxSpeed').value = fx.speed; $('#fxSpeedOut').textContent = fx.speed;
+  $('#fxStay').value = fx.stay; $('#fxStayOut').textContent = fx.stay;
+  $('#fxLight').value = fx.light; $('#fxLightOut').textContent = fx.light;
+  $('#fxJoin').checked = fx.join; $('#fxGap').value = fx.gap; $('#fxGapOut').textContent = fx.gap;
+}
+[['#fxSpeed', 'speed'], ['#fxStay', 'stay'], ['#fxLight', 'light'], ['#fxGap', 'gap']].forEach(([s, k]) => $(s).oninput = e => { S.el.fx[k] = +e.target.value; $(s + 'Out').textContent = e.target.value; refresh(); });
+$('#fxJoin').onchange = e => { S.el.fx.join = e.target.checked; refresh(); };
+
+// ================= INVIO =================
+async function withProgress(btn, fn) {
+  const bar = btn.querySelector('.bar'), label = btn.querySelector('span'), orig = label.textContent;
+  btn.disabled = true; label.textContent = 'Invio…'; if (bar) bar.style.width = '0';
+  try { await fn(p => { if (bar) bar.style.width = Math.round(p * 100) + '%'; label.textContent = `Invio ${Math.round(p * 100)}%`; }); return true; }
+  finally { btn.disabled = false; label.textContent = orig; if (bar) setTimeout(() => bar.style.width = '0', 400); }
+}
+async function sendElement(el, btn) {
+  if (!(await ensureLink())) return false;
+  const items = await buildItems(el);
+  if (el.kind === 'clock') await link.command(P.cmdTime(), { expect: 0x0c, timeout: 1500 }).catch(() => {});
+  const bytes = P.programBlob(items).blob.length;
+  log(`Invio “${el.name || el.kind}”: ${bytes} byte`);
+  const run = p => link.sendProgram(items, p);
+  if (btn) await withProgress(btn, run); else await run();
+  return true;
+}
+$('#btnSend').onclick = async () => {
+  try { if (await sendElement(S.el, $('#btnSend'))) { toast('Inviato al banner'); if (S.el.kind === 'countdown') toast('Inviato. Per tenerlo aggiornato avvia la modalità vetrina.'); } }
+  catch (e) { toast('Invio non riuscito: ' + e.message, true); log('Errore: ' + e.message); }
+};
+
+// ================= LIBRERIA =================
+$('#elName').oninput = e => { S.el.name = e.target.value; saveDraft(); };
+function elLabel(el) { return { text: 'Testo', image: 'Immagine', draw: 'Disegno', anim: 'Animazione', clock: 'Orologio', countdown: 'Conto alla rovescia' }[el.kind]; }
+async function thumbFor(el) {
+  const c = R.makeCanvas(W, H), x = R.ctx2d(c); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  try {
+    if (el.kind === 'clock') x.drawImage(R.renderClockPreview(el.clock), 0, 0);
+    else if (el.kind === 'anim') { const i = await loadImage(el.anim.frames[0]); if (i) x.drawImage(i, 0, 0); }
+    else if (el.kind === 'draw') { const i = await loadImage(el.draw.png); if (i) x.drawImage(i, 0, 0); }
+    else x.drawImage(await buildStrip(el), 0, 0);
+  } catch (e) {}
+  return c;
+}
+$('#btnSave').onclick = () => {
+  if (S.el.kind === 'draw') commitDraw();
+  const name = S.el.name.trim() || (S.el.kind === 'text' ? S.el.text.text.slice(0, 24) : elLabel(S.el));
+  const copy = JSON.parse(JSON.stringify({ ...S.el, name }));
+  let i = S.lib.findIndex(x => x.id === copy.id);
+  if (i >= 0 && S.lib[i].kind !== copy.kind) { copy.id = S.el.id = uid(); i = -1; }
+  if (i >= 0) S.lib[i] = copy; else S.lib.unshift(copy);
+  if (store.set('items', S.lib)) toast(i >= 0 ? 'Aggiornato in libreria' : 'Salvato in libreria');
+  S.el.name = name; $('#elName').value = name;
+};
+function openElement(el) {
+  S.el = Object.assign(defaultEl(), JSON.parse(JSON.stringify(el)));
+  drawState.ready = false; bindAll(); setKind(S.el.kind); go('crea');
+}
+async function renderLib() {
+  const ul = $('#libList'); ul.innerHTML = ''; $('#libEmpty').hidden = S.lib.length > 0;
+  for (const el of S.lib) {
+    const li = document.createElement('li');
+    const th = document.createElement('div'); th.className = 'thumb'; th.appendChild(await thumbFor(el));
+    const t = document.createElement('div'); t.className = 'title'; t.textContent = el.name; const sm = document.createElement('small'); sm.textContent = elLabel(el) + ' · ' + (EFFECTS.find(e => e.id === el.fx.effect)?.label || ''); t.appendChild(sm);
+    const btns = document.createElement('div'); btns.className = 'btns';
+    const mk = (label, fn, cls = 'ghost small') => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.innerHTML = `<span>${label}</span><i class="bar"></i>`; b.onclick = () => fn(b); btns.appendChild(b); return b; };
+    mk('Invia', async b => { try { await sendElement(el, b); toast('Inviato al banner'); } catch (e) { toast('Invio non riuscito: ' + e.message, true); } }, 'primary small');
+    mk('Modifica', () => openElement(el));
+    mk('In playlist', () => { S.playlist.push({ id: el.id, count: 1 }); store.set('playlist', S.playlist); toast('Aggiunto alla playlist'); });
+    mk('Elimina', () => { S.lib = S.lib.filter(x => x !== el); S.playlist = S.playlist.filter(p => p.id !== el.id); store.set('items', S.lib); store.set('playlist', S.playlist); renderLib(); }, 'ghost small danger');
+    li.append(th, t, btns); ul.appendChild(li);
+  }
+}
+$('#libExport').onclick = () => {
+  const blob = new Blob([JSON.stringify({ app: 'insegna', v: 1, items: S.lib, playlist: S.playlist, sched: S.sched }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'insegna-libreria.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('#libImport').onchange = async e => {
+  try {
+    const d = JSON.parse(await e.target.files[0].text());
+    const ids = new Set(S.lib.map(x => x.id)); (d.items || []).forEach(it => { if (!ids.has(it.id)) S.lib.push(it); });
+    store.set('items', S.lib); renderLib(); toast(`${(d.items || []).length} contenuti importati`);
+  } catch (err) { toast('File non valido', true); }
+  e.target.value = '';
+};
+
+// ================= PLAYLIST =================
+async function renderPlaylist() {
+  const ol = $('#plList'); ol.innerHTML = '';
+  S.playlist = S.playlist.filter(p => S.lib.some(x => x.id === p.id));
+  $('#plEmpty').hidden = S.playlist.length > 0; $('#btnSendPl').disabled = !S.playlist.length;
+  for (const [i, p] of S.playlist.entries()) {
+    const el = S.lib.find(x => x.id === p.id);
+    const li = document.createElement('li');
+    const th = document.createElement('div'); th.className = 'thumb'; th.appendChild(await thumbFor(el));
+    const t = document.createElement('div'); t.className = 'title'; t.textContent = `${i + 1}. ${el.name}`;
+    const btns = document.createElement('div'); btns.className = 'btns';
+    const cnt = document.createElement('label'); cnt.className = 'count'; cnt.innerHTML = `Ripeti <input type="number" min="1" max="255" value="${p.count}"> volte`;
+    cnt.querySelector('input').onchange = e => { p.count = clamp(+e.target.value || 1, 1, 255); store.set('playlist', S.playlist); };
+    const mk = (label, fn, cls = 'ghost small') => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = label; b.onclick = fn; btns.appendChild(b); };
+    btns.appendChild(cnt);
+    mk('↑', () => { if (i) { [S.playlist[i - 1], S.playlist[i]] = [S.playlist[i], S.playlist[i - 1]]; store.set('playlist', S.playlist); renderPlaylist(); } });
+    mk('↓', () => { if (i < S.playlist.length - 1) { [S.playlist[i + 1], S.playlist[i]] = [S.playlist[i], S.playlist[i + 1]]; store.set('playlist', S.playlist); renderPlaylist(); } });
+    mk('Togli', () => { S.playlist.splice(i, 1); store.set('playlist', S.playlist); renderPlaylist(); }, 'ghost small danger');
+    li.append(th, t, btns); ol.appendChild(li);
+  }
+}
+$('#btnSendPl').onclick = async () => {
+  if (!S.playlist.length || !(await ensureLink())) return;
+  try {
+    const programs = [];
+    for (const p of S.playlist) { const el = S.lib.find(x => x.id === p.id); programs.push({ items: await buildItems(el), playCount: p.count }); }
+    await withProgress($('#btnSendPl'), pr => link.sendPlaylist(programs, pr));
+    toast('Playlist inviata');
+  } catch (e) { toast('Invio playlist non riuscito: ' + e.message, true); log('Errore playlist: ' + e.message); }
+};
+
+// ================= BANNER: impostazioni =================
+$('#sBri').oninput = e => $('#sBriOut').textContent = e.target.value;
+$('#sBri').onchange = async e => { if (!(await ensureLink())) return; try { await link.command(P.cmdBrightness(+e.target.value), { expect: 0x09 }); toast('Luminosità ' + e.target.value + '/10'); } catch (err) { toast(err.message, true); } };
+$('#sPower').onchange = async e => { if (!(await ensureLink())) { e.target.checked = !e.target.checked; return; } try { await setPower(e.target.checked); } catch (err) { toast(err.message, true); } };
+async function setPower(on) { await link.command(P.cmdPower(on), { expect: 0x0a }); $('#sPower').checked = on; log(on ? 'Schermo acceso' : 'Schermo spento'); }
+$('#sTime').onclick = async () => { if (!(await ensureLink())) return; try { await link.command(P.cmdTime(), { expect: 0x0c }); toast('Ora sincronizzata'); } catch (e) { toast(e.message, true); } };
+$('#sColorType').value = S.colorType;
+$('#sColorType').onchange = e => { S.colorType = +e.target.value; store.set('colorType', S.colorType); refresh(); };
+$('#sPacket').value = String(link.packetMax || 0);
+$('#sPacket').onchange = e => { link.packetMax = +e.target.value; try { localStorage.setItem('ledlab.packetMax', link.packetMax); } catch (err) {} };
+$('.log').addEventListener('toggle', () => { $('#log').textContent = logLines.join('\n'); });
+$('#copyLog').onclick = () => navigator.clipboard.writeText(logLines.join('\n')).then(() => toast('Registro copiato'), () => toast('Copia non riuscita', true));
+
+// Procedura guidata formato colore
+const WIZ = [3, 4, 5, 2];
+function testPattern(n) {
+  const c = R.makeCanvas(W, H), x = R.ctx2d(c);
+  ['#ff0000', '#00ff00', '#0000ff', '#ffffff'].forEach((col, i) => { x.fillStyle = col; x.fillRect(i * 24, 0, 24, H); });
+  x.fillStyle = '#000'; x.font = '16px "Silkscreen"'; x.textBaseline = 'middle'; x.fillText(String(n), 79, 9);
+  return R.ctx2d(c).getImageData(0, 0, W, H).data;
+}
+$('#sWizard').onclick = () => runWizard(0);
+async function runWizard(i) {
+  const box = $('#wizard'); box.hidden = false;
+  if (i >= WIZ.length) { box.innerHTML = '<p>Nessuna prova ha dato colori giusti. Scegli il formato a mano dall\'elenco e controlla il registro.</p>'; return; }
+  box.innerHTML = `<p>Prova ${i + 1} di ${WIZ.length}: invio quattro fasce colorate…</p>`;
+  if (!(await ensureLink())) { box.hidden = true; return; }
+  try {
+    await document.fonts.load('16px "Silkscreen"');
+    await link.sendProgram([{ type: 0, frames: [P.encodeFrame(testPattern(i + 1), W, H, WIZ[i])], effect: 0, speed: 20, stay: 255, light: 100 }]);
+    box.innerHTML = `<p>Sul banner vedi, da sinistra, <strong>rosso, verde, blu e bianco</strong>, con il numero ${i + 1} nella fascia bianca?</p><div class="btns"><button class="secondary small" id="wYes" type="button">Sì, colori giusti</button><button class="ghost small" id="wNo" type="button">No, prova la prossima</button></div>`;
+  } catch (e) {
+    box.innerHTML = `<p>Il banner ha rifiutato la prova ${i + 1} (${e.message}).</p><div class="btns"><button class="ghost small" id="wNo" type="button">Prova la prossima</button></div>`;
+  }
+  const y = $('#wYes'); if (y) y.onclick = () => { S.colorType = WIZ[i]; store.set('colorType', S.colorType); $('#sColorType').value = S.colorType; box.innerHTML = '<p>Fatto: formato salvato. Ora invia di nuovo il tuo contenuto.</p>'; refresh(); };
+  $('#wNo').onclick = () => runWizard(i + 1);
+}
+
+// ================= ORARI E VETRINA =================
+const DAYN = ['D', 'L', 'M', 'M', 'G', 'V', 'S'], DAYL = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+function renderRules() {
+  const box = $('#rules'); box.innerHTML = '';
+  S.sched.rules.forEach((r, i) => {
+    const d = document.createElement('div'); d.className = 'rule';
+    d.innerHTML = `<div class="days">${[1, 2, 3, 4, 5, 6, 0].map(n => `<button type="button" data-d="${n}" aria-label="${DAYL[n]}" aria-pressed="${r.days.includes(n)}">${DAYN[n]}</button>`).join('')}</div>
+      <div class="times"><label class="field"><span>Acceso dalle</span><input type="time" value="${r.on}" data-k="on"></label><label class="field"><span>alle</span><input type="time" value="${r.off}" data-k="off"></label><button class="ghost small danger" type="button" data-del>Togli</button></div>`;
+    d.querySelectorAll('.days button').forEach(b => b.onclick = () => { const n = +b.dataset.d; r.days = r.days.includes(n) ? r.days.filter(x => x !== n) : [...r.days, n]; b.setAttribute('aria-pressed', r.days.includes(n)); store.set('sched', S.sched); });
+    d.querySelectorAll('input[type=time]').forEach(inp => inp.onchange = () => { r[inp.dataset.k] = inp.value; store.set('sched', S.sched); });
+    d.querySelector('[data-del]').onclick = () => { S.sched.rules.splice(i, 1); store.set('sched', S.sched); renderRules(); };
+    box.appendChild(d);
+  });
+  if (!S.sched.rules.length) box.innerHTML = '<p class="empty">Nessuna fascia oraria: in vetrina il banner resta come lo lasci.</p>';
+  $('#onShow').innerHTML = '<option value="">Quello che c\'era</option>' + S.lib.map(e => `<option value="${e.id}">${e.name.replace(/</g, '&lt;')}</option>`).join('');
+  $('#onShow').value = S.sched.onShow || '';
+}
+$('#addRule').onclick = () => { S.sched.rules.push({ days: [1, 2, 3, 4, 5, 6], on: '09:00', off: '20:00' }); store.set('sched', S.sched); renderRules(); };
+$('#onShow').onchange = e => { S.sched.onShow = e.target.value; store.set('sched', S.sched); };
+function shouldBeOn(now = new Date()) {
+  if (!S.sched.rules.length) return null;
+  const mins = now.getHours() * 60 + now.getMinutes(), day = now.getDay();
+  const tm = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+  return S.sched.rules.some(r => {
+    const a = tm(r.on), b = tm(r.off);
+    if (a <= b) return r.days.includes(day) && mins >= a && mins < b;
+    return (r.days.includes(day) && mins >= a) || (r.days.includes((day + 6) % 7) && mins < b); // fascia a cavallo di mezzanotte
+  });
+}
+const V = { on: false, timer: 0, clockT: 0, lastPower: null, wake: null, live: null, liveNext: 0 };
+function vlog(msg) { const ul = $('#vLog'); if (!ul || !V.on) return; const li = document.createElement('li'); li.textContent = new Date().toTimeString().slice(0, 5) + ' ' + msg; ul.prepend(li); while (ul.children.length > 30) ul.lastChild.remove(); }
+async function wake() { try { if ('wakeLock' in navigator) { V.wake = await navigator.wakeLock.request('screen'); } } catch (e) { log('Schermo del telefono: blocco non disponibile'); } }
+document.addEventListener('visibilitychange', () => { if (V.on && document.visibilityState === 'visible') wake(); });
+async function vetrinaTick() {
+  if (!V.on) return;
+  try {
+    if (!link.connected) { await link.reconnect(); }
+    const want = shouldBeOn();
+    if (want !== null && want !== V.lastPower && link.connected) {
+      await setPower(want); V.lastPower = want;
+      $('#vState').textContent = want ? 'Banner acceso secondo orario' : 'Banner spento secondo orario';
+      if (want && S.sched.onShow) { const el = S.lib.find(x => x.id === S.sched.onShow); if (el) { await sendElement(el); vlog('Mostro “' + el.name + '”'); } }
+    }
+    if (V.live && Date.now() >= V.liveNext && link.connected && shouldBeOn() !== false) {
+      await sendElement(V.live); V.liveNext = Date.now() + (V.live.countdown.every || 5) * 60000;
+      vlog('Conto alla rovescia aggiornato: ' + countdownText(V.live.countdown));
+    }
+  } catch (e) { vlog('Errore: ' + e.message); }
+}
+async function startVetrina(liveEl) {
+  if (!(await ensureLink())) return;
+  V.on = true; V.lastPower = null; V.live = liveEl || null; V.liveNext = 0; link.autoReconnect = true;
+  $('#vetrina').hidden = false; $('#vLog').innerHTML = ''; await wake();
+  $('#vState').textContent = V.live ? 'Conto alla rovescia in diretta' : 'Modalità vetrina attiva';
+  const tickClock = () => { const d = new Date(); $('#vClock').textContent = d.toTimeString().slice(0, 5); };
+  tickClock(); V.clockT = setInterval(tickClock, 5000);
+  vetrinaTick(); V.timer = setInterval(vetrinaTick, 20000);
+  vlog('Vetrina avviata. Tieni il telefono in carica vicino al banner.');
+}
+function stopVetrina() {
+  V.on = false; clearInterval(V.timer); clearInterval(V.clockT); link.autoReconnect = false;
+  try { V.wake && V.wake.release(); } catch (e) {}
+  $('#vetrina').hidden = true;
+}
+$('#btnVetrina').onclick = () => startVetrina(null);
+$('#vExit').onclick = stopVetrina;
+// pulsante extra per il conto alla rovescia
+(function () {
+  const b = document.createElement('button'); b.className = 'ghost'; b.type = 'button'; b.textContent = 'Avvia aggiornamento in diretta';
+  b.onclick = () => startVetrina(JSON.parse(JSON.stringify(S.el)));
+  $('[data-pane=countdown]').appendChild(b);
+})();
+
+// ================= AVVIO =================
+function bindAll() {
+  bindText(); bindImage(); bindClock(); bindCountdown(); updateFxUi();
+  $('#elName').value = S.el.name || '';
+}
+fillFonts(); renderFx(); renderPalette(); bindAll();
+sizeLed(); requestAnimationFrame(loop);
+setKind(S.el.kind);
+if (!LedLink.supported()) toast('Per collegare il banner apri questa pagina con Chrome su Android', true);
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+document.fonts && document.fonts.ready.then(() => refresh());
+})();
+
+</script>
+</body>
+</html>
