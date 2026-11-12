@@ -281,6 +281,10 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
 .stage.vert.ccw .panel{transform:translateY(420px) rotate(-90deg)}
 .stage.vert .stage-meta{flex-direction:column;align-items:flex-start;gap:10px}
 
+#icoImg{display:grid;gap:14px}
+#dSelBar{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+#dTextBox{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+
 </style>
 </head>
 <body>
@@ -412,10 +416,17 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
         <div class="drawbar" id="dSelBar" hidden>
           <span class="note">Trascina il blocco selezionato per spostarlo.</span>
           <span class="meta-btns"><button class="ghost small" id="dSelCopy" type="button">Lascia una copia</button><button class="ghost small danger" id="dSelDel" type="button">Cancella</button><button class="secondary small" id="dSelDone" type="button">Fatto</button></span>
+          <label class="field inline grow"><span>Dimensione <output id="dSelScaleOut">100</output>%</span><input type="range" id="dSelScale" min="25" max="400" step="5" value="100"></label>
+          <label class="check" id="dSelAllBox" hidden><input type="checkbox" id="dSelAll"><span>Metti su tutti i fotogrammi (resta fisso per tutta l'animazione)</span></label>
         </div>
         <p class="note" id="dHint">Un dito disegna. Due dita spostano e ingrandiscono la griglia. Con Seleziona trascini un riquadro e poi lo sposti in blocco.</p>
-        <div class="drawbar"><button class="ghost small" id="dIconBtn" type="button">Inserisci un'icona</button></div>
+        <div class="drawbar"><button class="ghost small" id="dIconBtn" type="button">Inserisci un'icona</button><button class="ghost small" id="dTextBtn" type="button">Inserisci una scritta</button><button class="ghost small" id="dRecolor" type="button">Tutto del colore scelto</button></div>
         <div class="sprites" id="dIconRow" hidden></div>
+        <div id="dTextBox" hidden>
+          <label class="field"><span>Scritta da inserire</span><input id="dText" placeholder="Scrivi qui"></label>
+          <p class="note">Usa carattere, altezza, colori, contorno, stili e spazio tra le lettere impostati nella scheda Testo: regolali lì, poi torna qui. Una volta inserita la sposti e la ridimensioni come un blocco.</p>
+          <button class="secondary small" id="dTextGo" type="button">Metti sul disegno</button>
+        </div>
         <div class="drawbar">
           <label class="field inline grow"><span>Zoom</span><input type="range" id="dZoom" min="3" max="40" value="12"></label>
           <button class="ghost small" id="dFit" type="button">Vedi tutto</button>
@@ -460,6 +471,11 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
         </div>
         <label class="field"><span>Velocità fotogrammi <output id="aSpeedOut">30</output></span><input type="range" id="aSpeed" min="20" max="49" value="30"></label>
         <p class="note" id="aSpeedNote"></p>
+        <details class="cal" id="aCalBox">
+          <summary>L'anteprima non va alla velocità del banner?</summary>
+          <p class="note">Invia l'animazione, poi sposta il cursore finché anteprima e banner vanno uguali. Vale anche per lo scorrimento "Senza stacchi" e per i bordi animati.</p>
+          <label class="field"><span>Anteprima a <output id="aCalOut">10</output> fotogrammi al secondo</span><input type="range" id="aCal" min="1" max="60" value="10"></label>
+        </details>
         <div id="aEditorSlot"></div>
       </div>
 
@@ -655,16 +671,33 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
 
 <div class="sheet" id="iconSheet" hidden>
   <div class="sheet-in">
-    <div class="view-head"><h1>Le mie icone</h1><button class="ghost small" id="icoClose" type="button">Chiudi</button></div>
+    <div class="view-head"><h1>Le mie icone</h1><span class="meta-btns"><button class="secondary small" id="icoNew" type="button">Nuova</button><button class="ghost small" id="icoClose" type="button">Chiudi</button></span></div>
     <p class="hint">Disegna un'icona alta fino a 16 pixel, oppure importala da un'immagine. Nel testo la inserisci dal pulsante con la sua anteprima e scorre insieme alla scritta.</p>
     <div class="sprites" id="icoList"></div>
     <div class="row2">
       <label class="field"><span>Nome (lettere e numeri)</span><input id="icoName" maxlength="16" autocapitalize="off" autocomplete="off"></label>
       <label class="field"><span>Larghezza (px)</span><input id="icoW" type="number" min="4" max="64" value="16"></label>
     </div>
-    <label class="drop compact"><input type="file" id="icoFile" accept="image/*,.svg"><span>Importa da un'immagine</span></label>
+    <label class="drop compact"><input type="file" id="icoFile" accept="image/*,.svg"><span>Importa da un'immagine o da un SVG</span></label>
+    <div id="icoImg" hidden>
+      <div class="field"><span>Dimensione e posizione dell'immagine</span>
+        <canvas class="croppad" id="icoPad" aria-label="Inquadratura dell'icona"></canvas>
+        <p class="note">Trascina per spostare, due dita per ingrandire o rimpicciolire. Queste regolazioni ridisegnano l'icona dall'immagine: fai i ritocchi a mano per ultimi.</p>
+      </div>
+      <label class="field"><span>Ingrandimento <output id="icoZoomOut">100</output>%</span><input type="range" id="icoZoom" min="-200" max="400" value="0"></label>
+      <fieldset class="field"><legend>Resa dei pixel</legend><div class="seg" id="icoSample"><button data-v="sharp" aria-pressed="true">Nitida</button><button data-v="soft">Morbida</button><button data-v="bold">Marcata</button></div></fieldset>
+      <div class="row2">
+        <label class="field"><span>Contrasto</span><input type="range" id="icoContrast" min="-50" max="80" value="10"></label>
+        <label class="field"><span>Saturazione</span><input type="range" id="icoSat" min="-100" max="120" value="20"></label>
+      </div>
+      <div class="row2">
+        <label class="field"><span>Luminosità</span><input type="range" id="icoBri" min="-60" max="60" value="0"></label>
+        <label class="field"><span>Neri puliti</span><input type="range" id="icoBlack" min="0" max="120" value="20"></label>
+      </div>
+      <button class="ghost small" id="icoReset" type="button">Rimetti al centro</button>
+    </div>
     <div id="icoSlot"></div>
-    <div class="actions sheet-actions"><button class="ghost danger" id="icoDel" type="button">Elimina</button><button class="secondary" id="icoNew" type="button">Nuova</button><button class="primary" id="icoSave" type="button"><span>Salva icona</span></button></div>
+    <div class="actions sheet-actions"><button class="ghost danger" id="icoDel" type="button">Elimina</button><button class="primary" id="icoSave" type="button"><span>Salva icona</span></button></div>
   </div>
 </div>
 
@@ -1206,7 +1239,7 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
     if (o.fit === 'cover' || o.fit === 'contain') return { s, dw, dh, x: (W - dw) / 2 + panX, y: (H - dh) / 2 + panY, outW: W, strip: false };
     const x = panX, y = (H - dh) / 2 + panY;
     const auto = clamp(Math.round(dw + panX), 8, maxW);
-    return { s, dw, dh, x, y, outW: o.width ? clamp(Math.round(o.width), 8, maxW) : auto, strip: true };
+    return { s, dw, dh, x, y, outW: o.width ? clamp(Math.round(o.width), 4, maxW) : auto, strip: true };
   }
 
   // sample: 'sharp' (nitido, come l'app originale) | 'soft' (media) | 'bold' (marcato: tiene i tratti sottili)
@@ -1622,7 +1655,7 @@ const store = (() => {
     get(k, d) { return k in mem ? mem[k] : d; },
     set(k, v) {
       mem[k] = v;
-      if (k === 'icons') { try { localStorage.setItem('ledlab.icons.bak', JSON.stringify(v)); } catch (e) {} } // seconda copia delle icone
+      if (k === 'icons') { try { localStorage.setItem('ledlab.icons.bak', JSON.stringify(v.map(i => ({ id: i.id, name: i.name, w: i.w, png: i.png })))); } catch (e) {} } // seconda copia delle icone
       try {
         if (db) { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.onerror = tx.onabort = () => toast('Salvataggio non riuscito: spazio del telefono esaurito?', true); }
         else localStorage.setItem('ledlab.' + k, JSON.stringify(v));
@@ -1713,7 +1746,16 @@ function pxPerSec(b) {
 function animTiming(v) {
   v = clamp(v | 0, 1, 49);
   const speed = v <= 40 ? 41 - v : 1, stay = v <= 40 ? Math.max(10, speed) : 50 - v;
-  return { speed, stay, ms: Math.max(16, v <= 40 ? speed * 20 : stay * 2), turbo: v > 40 };
+  return { speed, stay, ms: animMs(v), turbo: v > 40 };
+}
+const animBaseMs = v => { const speed = v <= 40 ? 41 - v : 1, stay = v <= 40 ? Math.max(10, speed) : 50 - v; return Math.max(16, v <= 40 ? speed * 20 : stay * 2); };
+// durata di un fotogramma nell'anteprima: quella calibrata dall'utente, o la stima a partire dalla calibrazione più vicina
+function animMs(v) {
+  const per = (S.cal && S.cal.anim) || {};
+  if (per[v]) return per[v];
+  const ks = Object.keys(per).map(Number);
+  if (ks.length) { const n = ks.reduce((a, c) => Math.abs(c - v) < Math.abs(a - v) ? c : a); return Math.max(8, per[n] * animBaseMs(v) / animBaseMs(n)); }
+  return animBaseMs(v);
 }
 const BPP = { 0: 1 / 8, 1: 1 / 8, 2: 0.5, 3: 3, 4: 2, 5: 1, 6: 1, 7: 1 };
 const pageBytes = () => W * H * (BPP[S.colorType] || 3);
@@ -2162,9 +2204,29 @@ function renderIcoList() {
     b.appendChild(c); b.onclick = () => editIcon(ic); box.appendChild(b);
   });
 }
+let icoImg = null;
+const icoDefaults = w => ({ fit: 'height', zoom: 1, panX: 0, panY: 0, width: w, sample: 'sharp', contrast: 10, saturation: 20, brightness: 0, blackCut: 20 });
+function bindIcoImg() {
+  const has = !!(icoImg && icoEdit && icoEdit.p); $('#icoImg').hidden = !has; if (!has) return;
+  const p = icoEdit.p; $('#icoZoom').value = zoomToSlider(p.zoom); $('#icoZoomOut').textContent = Math.round(p.zoom * 100); setSeg('#icoSample', p.sample);
+  $('#icoContrast').value = p.contrast; $('#icoSat').value = p.saturation; $('#icoBri').value = p.brightness; $('#icoBlack').value = p.blackCut;
+  requestAnimationFrame(() => icoPad.draw());
+}
+function renderIco() { // ridisegna l'icona dall'immagine importata
+  if (!icoImg || !icoEdit || !icoEdit.p) return;
+  D.sel = null; showSelBar(); D.canvas = R.renderImage(icoImg, icoEdit.p); $('#icoW').value = D.canvas.width;
+  $('#icoZoomOut').textContent = Math.round(icoEdit.p.zoom * 100); $('#icoZoom').value = zoomToSlider(icoEdit.p.zoom); paintGrid(); commitDraw();
+}
+const renderIcoSoon = debounce(renderIco, 60);
+const icoPad = CropPad($('#icoPad'), { get: () => icoImg && icoEdit && icoEdit.p && { src: icoImg, iw: icoImg.naturalWidth, ih: icoImg.naturalHeight, p: icoEdit.p }, change: renderIcoSoon });
+$('#icoZoom').oninput = e => { if (!icoImg) return; icoPad.zoomCenter(sliderToZoom(+e.target.value)); renderIcoSoon(); };
+segBind('#icoSample', v => { if (icoEdit && icoEdit.p) { icoEdit.p.sample = v; renderIco(); } });
+[['#icoContrast', 'contrast'], ['#icoSat', 'saturation'], ['#icoBri', 'brightness'], ['#icoBlack', 'blackCut']].forEach(([q, k]) => $(q).oninput = e => { if (icoEdit && icoEdit.p) { icoEdit.p[k] = +e.target.value; renderIcoSoon(); } });
+$('#icoReset').onclick = () => { if (!icoEdit || !icoEdit.p) return; Object.assign(icoEdit.p, { zoom: 1, panX: 0, panY: 0 }); icoPad.draw(); renderIco(); };
 async function editIcon(ic) {
-  icoEdit = { ...ic }; $('#icoName').value = ic.name; $('#icoW').value = ic.w; renderIcoList();
-  setDrawCanvas(await pngToCanvas(ic.png, ic.w), 'icon'); requestAnimationFrame(() => resetView(true));
+  icoEdit = { ...ic, p: ic.p ? { ...ic.p } : null }; $('#icoName').value = ic.name; $('#icoW').value = ic.w; renderIcoList();
+  icoImg = ic.src ? await loadImage(ic.src).catch(() => null) : null;
+  setDrawCanvas(await pngToCanvas(ic.png, ic.w), 'icon'); requestAnimationFrame(() => resetView(true)); bindIcoImg();
 }
 function openIcons() {
   $('#iconSheet').hidden = false; $('#icoSlot').appendChild($('#drawEditor')); $('#dWidthBar').hidden = true; D.minW = 4; D.maxW = 64;
@@ -2173,15 +2235,13 @@ function openIcons() {
 function closeIcons() { $('#iconSheet').hidden = true; icoEdit = null; D.ready = false; D.target = 'none'; buildSpriteBar(); setKind(S.el.kind); }
 $('#icoClose').onclick = closeIcons;
 $('#icoNew').onclick = () => editIcon(newIcon());
-$('#icoW').onchange = e => resizeDraw(+e.target.value);
+$('#icoW').onchange = e => { if (icoImg && icoEdit && icoEdit.p) { icoEdit.p.width = clamp(Math.round(+e.target.value || 16), 4, 64); renderIco(); icoPad.draw(); } else resizeDraw(+e.target.value); };
 $('#icoFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f || !icoEdit) return;
   try {
-    const img = await loadImage(await shrinkImage(await fileToRaster(f)));
-    const w = clamp(Math.round(img.naturalWidth * H / img.naturalHeight), 4, 64);
-    const c = R.renderImage(img, { fit: 'contain', sample: 'sharp', contrast: 10, saturation: 20, blackCut: 20 });
-    const out = R.makeCanvas(w, H), x = R.ctx2d(out); x.fillStyle = '#000'; x.fillRect(0, 0, w, H); x.drawImage(c, Math.round((w - W) / 2), 0);
-    pushUndo(); D.canvas = out; $('#icoW').value = w; resetView(true); commitDraw();
+    icoEdit.src = await shrinkImage(await fileToRaster(f)); icoImg = await loadImage(icoEdit.src);
+    icoEdit.p = icoDefaults(clamp(Math.round(icoImg.naturalWidth * H / icoImg.naturalHeight), 4, 64));
+    pushUndo(); renderIco(); resetView(true); bindIcoImg();
   } catch (err) { toast('Immagine non leggibile', true); }
 };
 $('#icoSave').onclick = async () => {
@@ -2190,9 +2250,10 @@ $('#icoSave').onclick = async () => {
   if (!name) { toast('Dai un nome all\'icona: solo lettere e numeri', true); return; }
   if (R.SPRITES[name] || S.icons.some(i => i.name === name && i.id !== icoEdit.id)) { toast('Questo nome è già usato: scegline un altro', true); return; }
   const old = S.icons.find(i => i.id === icoEdit.id);
-  const ic = { id: icoEdit.id, name, w: D.canvas.width, png: D.canvas.toDataURL('image/png') };
+  dropSel();
+  const ic = { id: icoEdit.id, name, w: D.canvas.width, png: D.canvas.toDataURL('image/png'), src: icoEdit.src || null, p: icoEdit.p || null };
   if (old) { if (old.name !== name) renameToken(old.name, name); Object.assign(old, ic); } else S.icons.push(ic);
-  icoEdit = { ...ic }; $('#icoName').value = name;
+  icoEdit = { ...ic, p: ic.p ? { ...ic.p } : null }; $('#icoName').value = name;
   store.set('icons', S.icons); await registerIcons(); renderIcoList(); toast('Icona salvata: la trovi tra i simboli del testo');
 };
 $('#icoDel').onclick = async () => {
@@ -2395,11 +2456,46 @@ function flat() { // disegno con il blocco sollevato già appoggiato
   if (!D.sel) return D.canvas;
   const c = R.makeCanvas(D.canvas.width, H), x = R.ctx2d(c); x.drawImage(D.canvas, 0, 0); x.drawImage(D.sel.c, D.sel.x, D.sel.y); return c;
 }
-function showSelBar() { $('#dSelBar').hidden = !D.sel; }
-function dropSel() { // appoggia il blocco dov'è
-  if (!D.sel) return;
-  R.ctx2d(D.canvas).drawImage(D.sel.c, D.sel.x, D.sel.y); D.sel = null; showSelBar(); paintGrid(); commitDrawSoon();
+function showSelBar() {
+  $('#dSelBar').hidden = !D.sel; $('#dSelAllBox').hidden = D.target !== 'anim';
+  if (D.sel) { $('#dSelScale').value = Math.round((D.sel.scale || 1) * 100); $('#dSelScaleOut').textContent = Math.round((D.sel.scale || 1) * 100); } else $('#dSelAll').checked = false;
 }
+function dropSel() { // appoggia il blocco dov'è
+  const sl = D.sel; if (!sl) return;
+  if (D.target === 'draw' && sl.x + sl.w > D.canvas.width && sl.x < D.canvas.width) { // la scritta non ci sta: aggiunge schermate
+    const w = clamp(Math.ceil((sl.x + sl.w) / W) * W, D.canvas.width, D.maxW || 1536), c = R.makeCanvas(w, H), cx = R.ctx2d(c);
+    cx.fillStyle = '#000'; cx.fillRect(0, 0, w, H); cx.drawImage(D.canvas, 0, 0); D.canvas = c; $('#dWidth').value = w;
+  }
+  R.ctx2d(D.canvas).drawImage(sl.c, sl.x, sl.y);
+  if (D.target === 'anim' && $('#dSelAll').checked) stampAllFrames(sl);
+  D.sel = null; showSelBar(); paintGrid(); commitDrawSoon();
+}
+async function stampAllFrames(sl) { // stesso blocco, stessa posizione, su ogni fotogramma
+  const f = S.el.anim.frames, cur = aSel;
+  for (let i = 0; i < f.length; i++) { if (i === cur) continue; const c = await pngToCanvas(f[i], W); R.ctx2d(c).drawImage(sl.c, sl.x, sl.y); f[i] = c.toDataURL('image/png'); updateFrameThumb(i); }
+  refresh(); toast(`Messo su tutti i ${f.length} fotogrammi`);
+}
+$('#dSelScale').oninput = e => {
+  const sl = D.sel; if (!sl) return;
+  sl.orig = sl.orig || sl.c; sl.scale = +e.target.value / 100; $('#dSelScaleOut').textContent = e.target.value;
+  const w = Math.max(1, Math.round(sl.orig.width * sl.scale)), h = Math.max(1, Math.round(sl.orig.height * sl.scale)), c = R.makeCanvas(w, h), x = R.ctx2d(c);
+  x.imageSmoothingEnabled = false; x.drawImage(sl.orig, 0, 0, w, h);
+  sl.c = keyBlack(c); sl.w = w; sl.h = h; paintGrid(); commitDrawSoon();
+};
+$('#dRecolor').onclick = () => { // tutti i pixel accesi diventano del colore scelto in tavolozza
+  dropSel(); pushUndo();
+  const x = R.ctx2d(D.canvas), id = x.getImageData(0, 0, D.canvas.width, H), d = id.data, [r, g, b] = R.hexToRgb(D.color === '#000000' ? '#ffffff' : D.color);
+  for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] >= 24) { d[i] = r; d[i + 1] = g; d[i + 2] = b; }
+  x.putImageData(id, 0, 0); paintGrid(); commitDraw();
+};
+$('#dTextBtn').onclick = () => { const b = $('#dTextBox'); b.hidden = !b.hidden; if (!b.hidden) { $('#dIconRow').hidden = true; if (!$('#dText').value) $('#dText').value = S.el.text.text.replace(/\n/g, ' '); } };
+$('#dTextGo').onclick = async () => {
+  const txt = $('#dText').value; if (!txt.trim()) { toast('Scrivi prima la scritta', true); return; }
+  await R.loadFont(R.fontById(S.el.text.font));
+  const t = R.renderText({ ...S.el.text, text: txt, bgOn: false, vertical: false, lines: 1 });
+  const c = R.makeCanvas(t.width, H); R.ctx2d(c).drawImage(t, 0, 0);
+  floatCanvas(c); $('#dTextBox').hidden = true; toast('Trascina la scritta dove vuoi, poi tocca Fatto');
+};
 function liftSel(a, b) {
   const x0 = clamp(Math.min(a[0], b[0]), 0, D.canvas.width - 1), x1 = clamp(Math.max(a[0], b[0]), 0, D.canvas.width - 1), y0 = clamp(Math.min(a[1], b[1]), 0, H - 1), y1 = clamp(Math.max(a[1], b[1]), 0, H - 1);
   const w = x1 - x0 + 1, h = y1 - y0 + 1; if (w * h < 2) return;
@@ -2411,7 +2507,7 @@ function liftSel(a, b) {
 function floatCanvas(c) { // mette un'immagine (icona) sul disegno come blocco da spostare
   dropSel(); pushUndo();
   const { r } = gridMetrics(), cx = Math.round(D.ox + r.width / D.zoom / 2 - c.width / 2), cy = Math.round((H - c.height) / 2);
-  D.sel = { x: clamp(cx, 0, Math.max(0, D.canvas.width - c.width)), y: cy, w: c.width, h: c.height, c: keyBlack(c) };
+  D.sel = { x: Math.max(0, c.width > r.width / D.zoom ? Math.round(D.ox) : cx), y: cy, w: c.width, h: c.height, c: keyBlack(c) };
   D.tool = 'select'; setSeg('#dTool', 'select'); showSelBar(); paintGrid(); commitDrawSoon();
 }
 $('#dSelDone').onclick = dropSel;
@@ -2648,6 +2744,7 @@ function speedLabel(v) { const t = animTiming(v); return `${v - 19} di 30${t.tur
 function showAnimSpeed() {
   const v = S.el.anim.speed, t = animTiming(v);
   $('#aSpeedOut').textContent = speedLabel(v);
+  $('#aCal').value = clamp(Math.round(1000 / t.ms), 1, 60); $('#aCalOut').textContent = Math.round(1000 / t.ms);
   $('#aSpeedNote').textContent = t.turbo ? 'Da 22 in su l\'app chiede al banner tempi più corti di quelli previsti dall\'app originale: se l\'animazione si blocca o sfarfalla, torna a 21.' : `Anteprima a circa ${Math.round(1000 / t.ms)} fotogrammi al secondo.`;
 }
 segBind('#aFit', v => { Object.assign(S.el.anim.crop, { fit: v, zoom: 1, panX: 0, panY: 0 }); syncAnimZoom(); aPad.draw(); renderGifFrames(); });
@@ -2687,6 +2784,7 @@ $('#aDel').onclick = frameOp(f => { if (f.length <= 1) return null; f.splice(aSe
 $('#aLeft').onclick = frameOp(f => { if (aSel < 1) return null; [f[aSel - 1], f[aSel]] = [f[aSel], f[aSel - 1]]; return aSel - 1; });
 $('#aRight').onclick = frameOp(f => { if (aSel >= f.length - 1) return null; [f[aSel + 1], f[aSel]] = [f[aSel], f[aSel + 1]]; return aSel + 1; });
 $('#aSpeed').oninput = e => { S.el.anim.speed = +e.target.value; showAnimSpeed(); refresh(); };
+$('#aCal').oninput = e => { S.cal.anim = S.cal.anim || {}; S.cal.anim[S.el.anim.speed] = 1000 / +e.target.value; $('#aCalOut').textContent = e.target.value; store.set('cal', S.cal); refresh(); };
 $('#aFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const n = await importGif(f, false); toast(`${n} fotogrammi importati`); }
