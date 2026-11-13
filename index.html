@@ -282,7 +282,14 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
 .stage.vert .stage-meta{flex-direction:column;align-items:flex-start;gap:10px}
 
 #icoImg{display:grid;gap:14px}
-#dSelBar{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+#dSelBar{display:grid;gap:10px;justify-content:stretch;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+#dSelBar .meta-btns{flex-wrap:wrap}
+.selsize{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.selsize-label{font-size:13px;font-weight:600;color:var(--muted)}
+.selsize-label output{color:var(--ink);font-variant-numeric:tabular-nums}
+.selsize-row{display:flex;align-items:center;gap:10px}
+.selsize-row input{flex:1;min-width:0;height:40px}
+.selsize-quick{display:flex;flex-wrap:wrap;gap:6px}
 #dTextBox{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
 
 </style>
@@ -416,7 +423,15 @@ button.icon{width:42px;height:42px;border:1px solid var(--line);background:var(-
         <div class="drawbar" id="dSelBar" hidden>
           <span class="note">Trascina il blocco selezionato per spostarlo.</span>
           <span class="meta-btns"><button class="ghost small" id="dSelCopy" type="button">Lascia una copia</button><button class="ghost small danger" id="dSelDel" type="button">Cancella</button><button class="secondary small" id="dSelDone" type="button">Fatto</button></span>
-          <label class="field inline grow"><span>Dimensione <output id="dSelScaleOut">100</output>%</span><input type="range" id="dSelScale" min="25" max="400" step="5" value="100"></label>
+          <div class="selsize">
+            <span class="selsize-label">Dimensione <output id="dSelScaleOut">100</output>%</span>
+            <div class="selsize-row">
+              <button class="icon" id="dSelMinus" type="button" aria-label="Rimpicciolisci">−</button>
+              <input type="range" id="dSelScale" min="25" max="400" step="5" value="100" aria-label="Dimensione del blocco">
+              <button class="icon" id="dSelPlus" type="button" aria-label="Ingrandisci">+</button>
+            </div>
+            <div class="selsize-quick"><button class="ghost small" type="button" data-scale="50">50%</button><button class="ghost small" type="button" data-scale="100">100%</button><button class="ghost small" type="button" data-scale="200">200%</button><button class="ghost small" type="button" data-scale="300">300%</button></div>
+          </div>
           <label class="check" id="dSelAllBox" hidden><input type="checkbox" id="dSelAll"><span>Metti su tutti i fotogrammi (resta fisso per tutta l'animazione)</span></label>
         </div>
         <p class="note" id="dHint">Un dito disegna. Due dita spostano e ingrandiscono la griglia. Con Seleziona trascini un riquadro e poi lo sposti in blocco.</p>
@@ -2475,6 +2490,10 @@ async function stampAllFrames(sl) { // stesso blocco, stessa posizione, su ogni 
   for (let i = 0; i < f.length; i++) { if (i === cur) continue; const c = await pngToCanvas(f[i], W); R.ctx2d(c).drawImage(sl.c, sl.x, sl.y); f[i] = c.toDataURL('image/png'); updateFrameThumb(i); }
   refresh(); toast(`Messo su tutti i ${f.length} fotogrammi`);
 }
+function setSelScale(v) { const r = $('#dSelScale'); r.value = clamp(v, 25, 400); r.dispatchEvent(new Event('input')); }
+$('#dSelMinus').onclick = () => setSelScale(+$('#dSelScale').value - 5);
+$('#dSelPlus').onclick = () => setSelScale(+$('#dSelScale').value + 5);
+$$('[data-scale]').forEach(b => b.onclick = () => setSelScale(+b.dataset.scale));
 $('#dSelScale').oninput = e => {
   const sl = D.sel; if (!sl) return;
   sl.orig = sl.orig || sl.c; sl.scale = +e.target.value / 100; $('#dSelScaleOut').textContent = e.target.value;
